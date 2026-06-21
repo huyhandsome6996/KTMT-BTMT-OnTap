@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 14: Cache (mapping + hit rate + PSU) - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  .cache-grid { display: grid; gap: 4px; font-family: var(--font-mono); font-size: 0.8rem; }
+  .cache-block { background: var(--gray-100); border: 1px solid var(--gray-300); padding: 6px 8px; border-radius: 3px; text-align: center; }
+  .cache-block.hit { background: var(--success-light); border-color: var(--success); color: var(--success); font-weight: bold; }
+  .cache-block.miss { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: bold; }
+  .cache-block.evicted { background: #ffe0e0; border-color: var(--accent); text-decoration: line-through; }
+  .psu-bar { height: 24px; background: linear-gradient(to right, var(--success) 0%, var(--success) 50%, var(--warning) 75%, var(--accent) 100%); border-radius: 12px; position: relative; margin: 12px 0; }
+  .psu-marker { position: absolute; top: -6px; width: 4px; height: 36px; background: var(--primary-dark); border-radius: 2px; }
+  .psu-label { position: absolute; top: 30px; font-size: 0.75rem; color: var(--primary-dark); font-weight: bold; transform: translateX(-50%); }
+</style>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 14: Cache + Hit Rate + PSU</strong>
+  <span>14/14</span>
+</div>
+
+<h1>Bài 14: Cache (Mapping + Hit Rate + PSU)</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Bài cuối — dài nhất, gộp 3 chủ đề: <strong>Cache mapping</strong>, <strong>Hit rate</strong> (KTMT), và <strong>PSU calculation</strong> (BTMT). Bài này quyết định điểm 9 hay 10.
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<h3>1. Cache là gì?</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Cache — Bộ nhớ đệm giữa CPU và RAM</div>
+  <p><strong>Cache</strong> là bộ nhớ nhỏ, <strong>nhanh hơn RAM rất nhiều</strong> (10–100 lần), nằm gần CPU. Cache lưu <strong>bản sao</strong> của các dữ liệu RAM hay được dùng. Khi CPU cần dữ liệu, nó kiểm tra cache trước:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>Cache HIT:</strong> dữ liệu có trong cache → đọc luôn từ cache (nhanh, $t_c$).</li>
+    <li><strong>Cache MISS:</strong> dữ liệu không có → phải đọc từ RAM (chậm, $t_m$) và <strong>sao chép vào cache</strong> cho lần sau.</li>
+    <li><strong>Cache Penalty:</strong> thời gian "phạt" do miss = thời gian đọc từ RAM − thời gian đọc từ cache = $t_m - t_c$ (đôi khi coi = $t_m$).</li>
+  </ul>
+  <p>Mục tiêu: <strong>tăng hit ratio</strong> (tỉ lệ trúng) càng cao càng tốt, để CPU ít phải chờ RAM.</p>
+</div>
+
+<h3>2. Ba nguyên lý Locality (Tính cục bộ)</h3>
+
+<table>
+  <tr>
+    <th>Nguyên lý</th>
+    <th>Tên</th>
+    <th>Ý nghĩa</th>
+    <th>Ví dụ</th>
+  </tr>
+  <tr>
+    <td><strong>Temporal Locality</strong></td>
+    <td>Cục bộ thời gian</td>
+    <td>Dữ liệu vừa được truy cập có khả năng <strong>được truy cập lại trong thời gian ngắn</strong></td>
+    <td>Vòng lặp for — biến đếm i được dùng nhiều lần trong vài chu kỳ</td>
+  </tr>
+  <tr>
+    <td><strong>Spatial Locality</strong></td>
+    <td>Cục bộ không gian</td>
+    <td>Dữ liệu gần dữ liệu vừa truy cập có khả năng <strong>được truy cập tiếp</strong></td>
+    <td>Duyệt mảng tuần tự — phần tử a[i+1] ngay sau a[i]</td>
+  </tr>
+  <tr>
+    <td><strong>Kết hợp</strong></td>
+    <td>Sequential Locality</td>
+    <td>Cả 2 nguyên lý trên cùng tác động</td>
+    <td>Code lệnh chạy tuần tự; mảng 2D duyệt theo hàng</td>
+  </tr>
+</table>
+
+<h3>3. Công thức thời gian truy cập trung bình (t_av)</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Các công thức t_av theo nguyên lý locality</div>
+  <p>Ký hiệu: $t_c$ = thời gian truy cập cache, $t_m$ = thời gian truy cập RAM, $n$ = số lần truy cập lặp lại (temporal), $m$ = số phần tử trong 1 block (spatial).</p>
+
+  <p><strong>1) Chỉ có temporal locality:</strong> dữ liệu được nạp vào cache 1 lần, rồi dùng lại $n$ lần.</p>
+  <p>$$t_{\text{av}}^{\text{temporal}} = \frac{n \cdot t_c + t_m}{n}$$</p>
+  <p>Giải thích: $n$ lần đọc cache ($n \cdot t_c$) + 1 lần đọc RAM ($t_m$), chia trung bình cho $n$ lần truy cập.</p>
+
+  <p><strong>2) Chỉ có spatial locality:</strong> nạp 1 block chứa $m$ phần tử từ RAM, rồi đọc từng phần tử từ cache.</p>
+  <p>$$t_{\text{av}}^{\text{spatial}} = \frac{m \cdot t_c + t_m}{m}$$</p>
+
+  <p><strong>3) Cả 2 nguyên lý (kết hợp):</strong> dữ liệu lặp lại $n$ lần, mỗi lần truy cập $m$ phần tử.</p>
+  <p>$$t_{\text{av}}^{\text{cả 2}} = \frac{n \cdot m \cdot t_c + t_m}{n \cdot m}$$</p>
+
+  <p><strong>4) Công thức tổng quát với hit ratio $h$:</strong></p>
+  <p>$$t_{\text{avg}} = h \cdot t_c + (1 - h) \cdot t_m = t_c + (1 - h) \cdot \underbrace{(t_m - t_c)}_{\text{penalty}}$$</p>
+  <p>Trong đó $h$ = tỉ lệ hit, $(1 - h)$ = tỉ lệ miss, $(t_m - t_c)$ = cache penalty.</p>
+
+  <p><strong>5) Speedup (tăng tốc):</strong></p>
+  <p>$$\text{Speedup} = \frac{t_m}{t_{\text{avg}}}$$</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1 — Công thức temporal/spatial</div>
+  <p>Sinh viên hay nhầm mẫu số. Ghi nhớ:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>Temporal</strong>: dùng $n$ lần (số lần lặp). Mẫu số = $n$.</li>
+    <li><strong>Spatial</strong>: dùng $m$ phần tử (số phần tử trong block). Mẫu số = $m$.</li>
+    <li><strong>Cả 2</strong>: $n \cdot m$ lần truy cập cache. Mẫu số = $n \cdot m$.</li>
+  </ul>
+  <p>Tử số luôn là: <strong>tổng thời gian truy cập cache</strong> + <strong>1 lần truy cập RAM</strong> (để nạp dữ liệu ban đầu).</p>
+</div>
+
+<h3>4. Ba cách Mapping (Ánh xạ RAM → Cache)</h3>
+
+<table>
+  <tr>
+    <th>Loại</th>
+    <th>Công thức</th>
+    <th>Đặc điểm</th>
+    <th>Ưu / Nhược</th>
+  </tr>
+  <tr>
+    <td><strong>Direct Mapping</strong><br>(Ánh xạ trực tiếp)</td>
+    <td>$K = i \bmod n$<br>($i$ = số khối RAM, $n$ = số khối cache)</td>
+    <td>Mỗi khối RAM chỉ được vào <strong>1 vị trí cố định</strong> trong cache</td>
+    <td>Ưu: đơn giản, nhanh.<br>Nhược: nhiều khối RAM tranh nhau 1 vị trí → nhiều miss</td>
+  </tr>
+  <tr>
+    <td><strong>Set-Associative</strong><br>(Ánh xạ tập hợp)</td>
+    <td>$K = i \bmod s$<br>($s$ = số set; mỗi set có $w$ way)</td>
+    <td>Cache chia thành $s$ set, mỗi set có $w$ khối. Khối RAM $i$ vào set $K = i \bmod s$, có $w$ vị trí để chọn</td>
+    <td>Ưu: cân bằng giữa đơn giản và linh hoạt.<br>Nhược: phức tạp hơn Direct</td>
+  </tr>
+  <tr>
+    <td><strong>Fully Associative</strong><br>(Ánh xạ hoàn toàn)</td>
+    <td>Khối RAM $i$ có thể vào <strong>bất kỳ vị trí nào</strong> trong cache</td>
+    <td>Hoàn toàn linh hoạt, dùng tag để tìm</td>
+    <td>Ưu: ít miss nhất.<br>Nhược: phải tìm kiếm song song toàn cache → đắt</td>
+  </tr>
+</table>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Mẹo nhớ công thức mapping</div>
+  <p>Direct: chia cho số khối cache ($n$). Set-Associative: chia cho số set ($s = n/w$). Fully: không chia, vào đâu cũng được.</p>
+  <p>Set-Associative 2-way với 8 khối cache → 4 set × 2 way → $s = 4$. Khối RAM $i$ vào set $i \bmod 4$.</p>
+</div>
+
+<h3>5. Bốn chiến thuật thay thế (Replacement Policy)</h3>
+
+<table>
+  <tr>
+    <th>Viết tắt</th>
+    <th>Tên</th>
+    <th>Nguyên tắc</th>
+  </tr>
+  <tr>
+    <td><strong>Random</strong></td>
+    <td>Ngẫu nhiên</td>
+    <td>Chọn ngẫu nhiên 1 khối để thay (đơn giản, nhưng có thể thay khối đang cần)</td>
+  </tr>
+  <tr>
+    <td><strong>LRU</strong></td>
+    <td>Least Recently Used (Ít dùng gần đây nhất)</td>
+    <td>Thay khối <strong>lâu nhất chưa được truy cập</strong>. Dựa trên nguyên lý temporal locality</td>
+  </tr>
+  <tr>
+    <td><strong>FIFO</strong></td>
+    <td>First In First Out (Vào trước ra trước)</td>
+    <td>Thay khối <strong>vào cache đầu tiên</strong> (cũ nhất theo thời gian vào)</td>
+  </tr>
+  <tr>
+    <td><strong>LFU</strong></td>
+    <td>Least Frequently Used (Ít dùng nhất theo tần suất)</td>
+    <td>Thay khối có <strong>số lần truy cập ít nhất</strong> (đếm tần suất)</td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #2 — LRU vs FIFO</div>
+  <p>LRU và FIFO hay bị nhầm. Phân biệt:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>FIFO:</strong> thay khối <strong>vào cache đầu tiên</strong>, không quan tâm nó có được dùng lại sau đó hay không.</li>
+    <li><strong>LRU:</strong> thay khối <strong>ít được dùng gần đây nhất</strong> — nếu khối cũ nhưng vừa được truy cập lại thì nó trở thành "mới".</li>
+  </ul>
+  <p>Ví dụ: chuỗi K1, K2, K1, K3. Khi K3 vào (cache đầy), FIFO sẽ thay K1 (vào đầu tiên). Nhưng LRU sẽ thay K2 (vì K1 vừa được truy cập lại nên "mới hơn").</p>
+</div>
+
+<h3>6. PSU (Nguồn máy tính) — Bảo Trì Máy Tính</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 PSU là gì?</div>
+  <p><strong>PSU (Power Supply Unit)</strong> = bộ nguồn máy tính. Biến điện AC 220V thành DC cho các linh kiện (CPU, GPU, RAM, ổ cứng...). Chọn PSU sai công suất → máy treo, restart, cháy linh kiện.</p>
+
+  <p><strong>Công thức tính công suất PSU cần thiết:</strong></p>
+  <p>$$\text{PSU}_{\text{cần}} = (P_{\text{CPU}} + P_{\text{GPU}} + P_{\text{RAM}} + P_{\text{Storage}} + P_{\text{Others}}) \times 1.5$$</p>
+  <p>Hệ số <strong>1.5</strong> (≈ 150%) là <strong>hệ số dự phòng</strong> để:</p>
+  <ul style="padding-left: 20px;">
+    <li>Chấp nhận <strong>spike dòng</strong> lúc boot hoặc tải cao đột biến.</li>
+    <li>Để PSU chạy ở <strong>50–70% công suất danh định</strong> → hiệu suất cao nhất (vùng 80 PLUS Gold/Platinum).</li>
+    <li>Kéo dài tuổi thọ PSU.</li>
+  </ul>
+
+  <p><strong>Bảng PSU theo nhu cầu:</strong></p>
+  <table>
+    <tr><th>Nhu cầu</th><th>Cấu hình tiêu biểu</th><th>PSU khuyến nghị</th></tr>
+    <tr><td>Văn phòng cơ bản</td><td>i3/Ryzen 3, không GPU rời, 8GB RAM</td><td>300–400W</td></tr>
+    <tr><td>Văn phòng nâng cao</td><td>i5/Ryzen 5, GPU entry (GTX 1650)</td><td>400–500W</td></tr>
+    <tr><td>Gaming trung bình</td><td>i5/Ryzen 5 + RTX 3060</td><td>600–650W</td></tr>
+    <tr><td>Gaming cao cấp</td><td>i7/Ryzen 7 + RTX 3070/3080</td><td>750–850W</td></tr>
+    <tr><td>Workstation</td><td>i9/Ryzen 9 + RTX 4090, 64GB RAM</td><td>1000W+</td></tr>
+  </table>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 6 ví dụ trải đều 3 chủ đề</div>
+  <p>Từ locality → mapping → replacement → hit rate → PSU. Làm xong 6 bước này, bạn đủ kiến thức thi bài 14.</p>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+const steps = [
+  {
+    title: "Bước 1 — Locality: t_c=2ns, t_m=80ns, n=4",
+    content: `
+      <p>Đề: Bộ nhớ cache có $t_c = 2$ ns, RAM có $t_m = 80$ ns. Một dữ liệu được truy cập lặp lại $n = 4$ lần (chỉ có temporal locality). Tính $t_{\text{av}}$ và speedup.</p>
+      <p><strong>Công thức temporal:</strong></p>
+      <p>$$t_{\text{av}} = \frac{n \cdot t_c + t_m}{n} = \frac{4 \cdot 2 + 80}{4}$$</p>
+      <p><strong>Tính:</strong></p>
+      <div class="code-block">= (4·2 + 80) / 4
+= (8 + 80) / 4
+= 88 / 4
+= <strong class="text-accent">22 ns</strong></div>
+      <p><strong>Giải thích:</strong> Lần đầu truy cập dữ liệu phải đọc từ RAM (80 ns) và nạp vào cache. 3 lần sau đọc từ cache (mỗi lần 2 ns). Tổng $1 \times 80 + 4 \times 2 = 88$ ns cho 4 lần truy cập, trung bình 22 ns/lần.</p>
+      <p><strong>Speedup:</strong></p>
+      <p>$$\text{Speedup} = \frac{t_m}{t_{\text{av}}} = \frac{80}{22} \approx 3.64$$</p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>t_av = 22 ns; Speedup ≈ 3.64×</div>
+    `
+  },
+  {
+    title: "Bước 2 — Direct Mapping: cache 8 khối, RAM 32 khối, khối 13",
+    content: `
+      <p>Đề: Cache có 8 khối, RAM có 32 khối. Dùng <strong>Direct Mapping</strong>. Khối RAM thứ 13 sẽ được ánh xạ vào khối cache nào?</p>
+      <p><strong>Công thức Direct Mapping:</strong></p>
+      <p>$$K = i \bmod n$$</p>
+      <p>Trong đó: $i$ = số khối RAM (bắt đầu từ 0), $n$ = số khối cache, $K$ = chỉ số khối cache.</p>
+      <p><strong>Áp dụng:</strong> Khối RAM $i = 13$, cache $n = 8$.</p>
+      <div class="code-block">K = 13 mod 8
+  13 : 8 = 1 dư 5
+→ K = <strong class="text-accent">5</strong></div>
+      <p><strong>Giải thích:</strong> Khối RAM 13 sẽ được ánh xạ vào <strong>khối cache số 5</strong>. Tất cả các khối RAM có dạng $13 + 8k$ (13, 21, 29) cũng vào khối cache 5 — đây là hạn chế của Direct Mapping.</p>
+      <p><strong>Bảng ánh xạ (một vài khối RAM đầu):</strong></p>
+      <table>
+        <tr><th>Khối RAM (i)</th><th>i mod 8</th><th>Vào khối cache</th></tr>
+        <tr><td>0</td><td>0</td><td>0</td></tr>
+        <tr><td>1</td><td>1</td><td>1</td></tr>
+        <tr><td>5</td><td>5</td><td>5</td></tr>
+        <tr><td>8</td><td>0</td><td>0</td></tr>
+        <tr><td><strong>13</strong></td><td><strong>5</strong></td><td><strong>5</strong></td></tr>
+        <tr><td>21</td><td>5</td><td>5</td></tr>
+        <tr><td>29</td><td>5</td><td>5</td></tr>
+      </table>
+      <div class="result-box"><span class="result-label">Kết quả:</span>Khối RAM 13 → khối cache 5 (Direct Mapping)</div>
+    `
+  },
+  {
+    title: "Bước 3 — Set-Associative 2-way: cache 8 khối, 4 set, khối 13",
+    content: `
+      <p>Đề: Cache có 8 khối, chia thành <strong>4 set × 2 way</strong> (set-associative 2-way). Khối RAM 13 vào set nào?</p>
+      <p><strong>Công thức Set-Associative:</strong></p>
+      <p>$$K = i \bmod s$$</p>
+      <p>Trong đó: $i$ = số khối RAM, $s$ = số set, $K$ = chỉ số set. Trong mỗi set có $w$ way (vị trí) để khối RAM có thể vào.</p>
+      <p><strong>Áp dụng:</strong> $i = 13$, $s = 4$ (vì 8 khối / 2 way = 4 set).</p>
+      <div class="code-block">K = 13 mod 4
+  13 : 4 = 3 dư 1
+→ K = <strong class="text-accent">1</strong></div>
+      <p><strong>Giải thích:</strong> Khối RAM 13 vào <strong>set 1</strong>. Trong set 1 có 2 way (2 vị trí), nên khối RAM 13 có thể vào 1 trong 2 vị trí này. Nếu cả 2 đã đầy, áp dụng chính sách thay thế (LRU/FIFO/...).</p>
+      <p><strong>So sánh với Direct Mapping:</strong></p>
+      <ul>
+        <li>Direct: K = 13 mod 8 = 5 → 1 vị trí cố định.</li>
+        <li>Set-Assoc 2-way: K = 13 mod 4 = 1 → 2 vị trí để chọn (linh hoạt hơn).</li>
+      </ul>
+      <p>Set-Associative giảm miss rate vì ít "đụng độ" hơn Direct Mapping.</p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>Khối RAM 13 → set 1 (có 2 way để chọn)</div>
+    `
+  },
+  {
+    title: "Bước 4 — LRU: chuỗi K1, K2, K1, K3, K4 với cache 3 khối",
+    content: `
+      <p>Đề: Cache 3 khối, dùng chính sách <strong>LRU</strong>. Cho chuỗi tham chiếu: K1, K2, K1, K3, K4. Mô phỏng từng bước, tính hit rate.</p>
+      <p><strong>Quy tắc LRU:</strong> Khi cache đầy và cần nạp khối mới, thay khối <strong>ít được dùng gần đây nhất</strong>. Cập nhật "độ mới" mỗi khi truy cập.</p>
+      <p><strong>Mô phỏng từng bước:</strong></p>
+      <table>
+        <tr><th>Bước</th><th>Tham chiếu</th><th>Cache sau khi xử lý</th><th>Thứ tự LRU (cũ → mới)</th><th>Hit/Miss</th></tr>
+        <tr><td>1</td><td>K1</td><td>[K1, -, -]</td><td>K1</td><td><strong>MISS</strong> (cache trống, nạp K1)</td></tr>
+        <tr><td>2</td><td>K2</td><td>[K1, K2, -]</td><td>K1, K2</td><td><strong>MISS</strong> (nạp K2)</td></tr>
+        <tr><td>3</td><td>K1</td><td>[K1, K2, -]</td><td>K2, K1 (K1 vừa dùng → mới hơn)</td><td><strong>HIT</strong> ✓ (K1 đã có trong cache)</td></tr>
+        <tr><td>4</td><td>K3</td><td>[K3, K2, -] (thay K1?)</td><td>...</td><td>...</td></tr>
+      </table>
+      <p><strong>Chi tiết bước 4 (K3 vào, cache đầy):</strong></p>
+      <ul>
+        <li>Thứ tự LRU hiện tại: <code>K2 (cũ nhất) → K1 (mới nhất)</code>.</li>
+        <li>LRU = K2 (cũ nhất, ít dùng gần đây nhất) → <strong>thay K2 bằng K3</strong>.</li>
+        <li>Cache sau: <code>[K1, K3, -]</code>. Thứ tự LRU: <code>K1, K3</code>.</li>
+        <li>Hit/Miss: <strong>MISS</strong> (K3 chưa có).</li>
+      </ul>
+      <p><strong>Chi tiết bước 5 (K4 vào, cache đầy):</strong></p>
+      <ul>
+        <li>Thứ tự LRU: <code>K1 (cũ nhất) → K3 (mới nhất)</code>.</li>
+        <li>LRU = K1 (cũ nhất) → <strong>thay K1 bằng K4</strong>.</li>
+        <li>Cache sau: <code>[K4, K3, -]</code>.</li>
+        <li>Hit/Miss: <strong>MISS</strong> (K4 chưa có).</li>
+      </ul>
+      <p><strong>Tổng kết:</strong></p>
+      <ul>
+        <li>Tổng số tham chiếu: 5</li>
+        <li>Số HIT: 1 (bước 3)</li>
+        <li>Số MISS: 4</li>
+        <li><strong>Hit ratio = 1/5 = 0.20 = 20%</strong></li>
+      </ul>
+      <div class="result-box"><span class="result-label">Kết quả:</strong>Hit ratio = 20% (1 hit / 5 tham chiếu). LRU thay K2 ở bước 4, thay K1 ở bước 5.</div>
+    `
+  },
+  {
+    title: "Bước 5 — Hit Rate: t_c=5ns, t_m=100ns, hit ratio=0.92",
+    content: `
+      <p>Đề: Cache có $t_c = 5$ ns, RAM có $t_m = 100$ ns, tỉ lệ hit $h = 0.92$ (92% trúng cache). Tính $t_{\text{avg}}$ và speedup.</p>
+      <p><strong>Công thức tổng quát:</strong></p>
+      <p>$$t_{\text{avg}} = h \cdot t_c + (1 - h) \cdot t_m = t_c + (1 - h) \cdot (t_m - t_c)$$</p>
+      <p><strong>Cách 1 (theo công thức gốc):</strong></p>
+      <div class="code-block">t_avg = h·t_c + (1 − h)·t_m
+     = 0.92·5 + 0.08·100
+     = 4.6 + 8
+     = <strong class="text-accent">12.6 ns</strong></div>
+      <p><strong>Cách 2 (theo penalty):</strong></p>
+      <div class="code-block">penalty = t_m − t_c = 100 − 5 = 95 ns
+t_avg = t_c + (1 − h)·penalty
+     = 5 + 0.08·95
+     = 5 + 7.6
+     = <strong class="text-accent">12.6 ns</strong> ✓</div>
+      <p><strong>Speedup:</strong></p>
+      <p>$$\text{Speedup} = \frac{t_m}{t_{\text{avg}}} = \frac{100}{12.6} \approx 7.94$$</p>
+      <p><strong>Lưu ý:</strong> Đề bài trong tài liệu gốc ghi $t_{\text{avg}} = 5 + 0.08 \cdot 100 = 13$ ns — đây là cách tính <strong>đơn giản hóa</strong> (coi penalty = $t_m$, không trừ $t_c$). Khi đó:</p>
+      <div class="code-block">t_avg (đơn giản) = t_c + (1 − h)·t_m
+              = 5 + 0.08·100
+              = 5 + 8
+              = 13 ns
+Speedup = 100/13 ≈ 7.69</div>
+      <p><strong>Khi thi: hỏi lại giám khảo hoặc theo cách giáo trình quy ước</strong>. Cách 1 (12.6 ns) chính xác hơn; cách 2 (13 ns) đơn giản và thường được dùng trong giáo trình KTMT Việt Nam.</p>
+      <div class="result-box"><span class="result-label">Kết quả (theo cách giáo trình):</span>t_avg = 13 ns; Speedup ≈ 7.69×</div>
+    `
+  },
+  {
+    title: "Bước 6 — PSU: CPU 65W, GPU 170W, Others 50W",
+    content: `
+      <p>Đề: Cấu hình máy: CPU 65W, GPU 170W, RAM + Storage + Others = 50W. Tính công suất PSU cần thiết và khuyến nghị.</p>
+      <p><strong>Công thức:</strong></p>
+      <p>$$\text{PSU}_{\text{cần}} = (P_{\text{CPU}} + P_{\text{GPU}} + P_{\text{Others}}) \times 1.5$$</p>
+      <p><strong>Bước 1: Tính tổng công suất linh kiện</strong></p>
+      <div class="code-block">P_tổng = P_CPU + P_GPU + P_Others
+      = 65 + 170 + 50
+      = <strong class="text-accent">285 W</strong></div>
+      <p><strong>Bước 2: Nhân với hệ số dự phòng 1.5</strong></p>
+      <div class="code-block">PSU_cần = 285 × 1.5
+        = <strong class="text-accent">427.5 W</strong></div>
+      <p><strong>Bước 3: Chọn PSU chuẩn (làm tròn lên theo các giá trị có sẵn)</strong></p>
+      <ul>
+        <li>Công suất cần: 427.5 W</li>
+        <li>PSU có sẵn trên thị trường: 400W, 450W, 500W, 550W, 600W, 650W...</li>
+        <li>Chọn PSU ≥ 427.5W → <strong>450W</strong> (vừa đủ) hoặc <strong>500W</strong> (dư địa cho upgrade).</li>
+      </ul>
+      <p><strong>Khuyến nghị:</strong> Chọn PSU <strong>500W 80 PLUS Bronze</strong> trở lên. Lý do:</p>
+      <ul>
+        <li>500W > 427.5W → có dự phòng.</li>
+        <li>500W chạy ở ~57% tải → đạt hiệu suất cao nhất của 80 PLUS Bronze (vùng 50–60% tải là tối ưu).</li>
+        <li>Dư địa để nâng cấp GPU/CPU sau này.</li>
+      </ul>
+      <div class="result-box"><span class="result-label">Kết quả:</span>PSU cần ≈ 427.5W → khuyến nghị PSU 500W (80 PLUS Bronze trở lên)</div>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🧮 Cache &amp; PSU Calculator</div>
+
+  <div class="tabs" data-tabs="cache">
+    <button class="tab active">Cache Mapping</button>
+    <button class="tab">Replacement Simulator</button>
+    <button class="tab">Hit Rate Calculator</button>
+    <button class="tab">PSU Calculator</button>
+  </div>
+
+  <!-- Tab 1: Cache Mapping -->
+  <div class="tab-content active">
+    <p>Chọn loại mapping và nhập số liệu:</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+      <div>
+        <label>Loại mapping:</label><br>
+        <select id="map-type">
+          <option value="direct">Direct (K = i mod n)</option>
+          <option value="set2">Set-Associative 2-way (K = i mod s)</option>
+          <option value="set4">Set-Associative 4-way</option>
+          <option value="fully">Fully Associative</option>
+        </select>
+      </div>
+      <div>
+        <label>Số khối RAM:</label><br>
+        <input type="number" id="ram-blocks" value="32" min="1" max="64" style="max-width: 100px;">
+      </div>
+      <div>
+        <label>Số khối cache:</label><br>
+        <input type="number" id="cache-blocks" value="8" min="1" max="16" style="max-width: 100px;">
+      </div>
+      <button class="btn mt-1" onclick="calcMapping()">Tính!</button>
+    </div>
+    <div id="map-result"></div>
+  </div>
+
+  <!-- Tab 2: Replacement -->
+  <div class="tab-content">
+    <p>Nhập chuỗi tham chiếu (cách nhau bởi dấu phẩy, vd: K1,K2,K1,K3,K4):</p>
+    <input type="text" id="ref-seq" value="K1,K2,K1,K3,K4" style="max-width: 400px;">
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 12px;">
+      <div>
+        <label>Chiến thuật:</label><br>
+        <select id="replace-policy">
+          <option value="LRU">LRU (Least Recently Used)</option>
+          <option value="FIFO">FIFO (First In First Out)</option>
+          <option value="LFU">LFU (Least Frequently Used)</option>
+        </select>
+      </div>
+      <div>
+        <label>Số khối cache:</label><br>
+        <input type="number" id="rep-cache-size" value="3" min="1" max="8" style="max-width: 100px;">
+      </div>
+      <button class="btn mt-1" onclick="simulateReplace()">Mô phỏng!</button>
+    </div>
+    <div id="rep-result"></div>
+  </div>
+
+  <!-- Tab 3: Hit Rate -->
+  <div class="tab-content">
+    <p>Nhập thông số cache:</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+      <div>
+        <label>t_c (ns):</label><br>
+        <input type="number" id="tc-input" value="5" min="0" step="0.1" style="max-width: 100px;">
+      </div>
+      <div>
+        <label>t_m (ns):</label><br>
+        <input type="number" id="tm-input" value="100" min="0" step="0.1" style="max-width: 100px;">
+      </div>
+      <div>
+        <label>Hit ratio (0-1):</label><br>
+        <input type="number" id="hit-ratio" value="0.92" min="0" max="1" step="0.01" style="max-width: 100px;">
+      </div>
+      <button class="btn mt-1" onclick="calcHitRate()">Tính!</button>
+    </div>
+    <div id="hit-result"></div>
+  </div>
+
+  <!-- Tab 4: PSU -->
+  <div class="tab-content">
+    <p>Chọn cấu hình PC để tính PSU:</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+      <div>
+        <label>CPU:</label>
+        <select id="cpu-select">
+          <option value="65">Intel i3-12100 (65W)</option>
+          <option value="65" selected>Intel i5-12400 (65W)</option>
+          <option value="125">Intel i7-12700K (125W)</option>
+          <option value="125">Intel i9-12900K (125W)</option>
+          <option value="65">AMD Ryzen 5 5600 (65W)</option>
+          <option value="105">AMD Ryzen 7 5800X (105W)</option>
+          <option value="170">AMD Ryzen 9 7950X (170W)</option>
+        </select>
+      </div>
+      <div>
+        <label>GPU:</label>
+        <select id="gpu-select">
+          <option value="0">Không GPU rời (IGPU)</option>
+          <option value="75">GTX 1650 (75W)</option>
+          <option value="170" selected>RTX 3060 (170W)</option>
+          <option value="220">RTX 3070 (220W)</option>
+          <option value="320">RTX 3080 (320W)</option>
+          <option value="350">RTX 3090 (350W)</option>
+          <option value="450">RTX 4090 (450W)</option>
+        </select>
+      </div>
+      <div>
+        <label>RAM:</label>
+        <select id="ram-select">
+          <option value="3">8GB DDR4 (3W)</option>
+          <option value="6" selected>16GB DDR4 (6W)</option>
+          <option value="12">32GB DDR4 (12W)</option>
+          <option value="24">64GB DDR4 (24W)</option>
+        </select>
+      </div>
+      <div>
+        <label>Storage:</label>
+        <select id="storage-select">
+          <option value="5" selected>SSD NVMe 1TB (5W)</option>
+          <option value="8">SSD NVMe 2TB (8W)</option>
+          <option value="6">HDD 1TB (6W)</option>
+          <option value="10">HDD 2TB (10W)</option>
+          <option value="15">SSD 1TB + HDD 2TB (15W)</option>
+        </select>
+      </div>
+      <div>
+        <label>Motherboard + Fans + Others:</label>
+        <select id="others-select">
+          <option value="50" selected>Motherboard 30W + Fans 20W (50W)</option>
+          <option value="65">Motherboard 30W + Fans 20W + RGB 15W (65W)</option>
+          <option value="80">Workstation MB 50W + Fans 30W (80W)</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn mt-2" onclick="calcPSU()">Tính PSU!</button>
+    <div id="psu-result" class="mt-2"></div>
+  </div>
+</div>
+
+<script>
+function calcMapping() {
+  const type = document.getElementById('map-type').value;
+  const ramBlocks = parseInt(document.getElementById('ram-blocks').value);
+  const cacheBlocks = parseInt(document.getElementById('cache-blocks').value);
+  if (isNaN(ramBlocks) || isNaN(cacheBlocks) || ramBlocks < 1 || cacheBlocks < 1) {
+    document.getElementById('map-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Số khối không hợp lệ.</div>';
+    return;
+  }
+  let way = 1, setCount = cacheBlocks;
+  let typeName = '';
+  if (type === 'direct') { way = 1; setCount = cacheBlocks; typeName = 'Direct Mapping'; }
+  else if (type === 'set2') { way = 2; setCount = cacheBlocks / 2; typeName = 'Set-Associative 2-way'; }
+  else if (type === 'set4') { way = 4; setCount = cacheBlocks / 4; typeName = 'Set-Associative 4-way'; }
+  else { way = cacheBlocks; setCount = 1; typeName = 'Fully Associative'; }
+
+  if (type !== 'fully' && !Number.isInteger(setCount)) {
+    document.getElementById('map-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Số khối cache phải chia hết cho ' + way + ' cho ' + typeName + '.</div>';
+    return;
+  }
+
+  let html = `<p><strong>${typeName}</strong> — RAM: ${ramBlocks} khối, Cache: ${cacheBlocks} khối (${setCount} set × ${way} way)</p>`;
+  if (type === 'fully') {
+    html += `<p>Mỗi khối RAM có thể vào <strong>bất kỳ vị trí nào</strong> trong ${cacheBlocks} khối cache.</p>`;
+  } else {
+    html += `<p><strong>Công thức:</strong> K = i mod ${setCount}</p>`;
+    html += `<table><tr><th>Khối RAM (i)</th><th>K = i mod ${setCount}</th><th>Vào ${type === 'direct' ? 'khối cache' : 'set'}</th></tr>`;
+    for (let i = 0; i < Math.min(ramBlocks, 24); i++) {
+      const K = i % setCount;
+      html += `<tr><td>${i}</td><td>${i} mod ${setCount} = <strong>${K}</strong></td><td><strong>${K}</strong></td></tr>`;
+    }
+    if (ramBlocks > 24) html += `<tr><td colspan="3" style="text-align:center; color:var(--gray-500);">... còn ${ramBlocks - 24} khối nữa</td></tr>`;
+    html += `</table>`;
+  }
+  html += `<div class="result-box"><span class="result-label">Ví dụ:</strong>Khối RAM 13 → ${type === 'fully' ? 'bất kỳ vị trí nào (free)' : (type === 'direct' ? 'khối cache ' + (13 % setCount) : 'set ' + (13 % setCount) + ' (có ' + way + ' way để chọn)')}</div>`;
+  document.getElementById('map-result').innerHTML = html;
+}
+
+function simulateReplace() {
+  const seqStr = document.getElementById('ref-seq').value.trim();
+  const policy = document.getElementById('replace-policy').value;
+  const cacheSize = parseInt(document.getElementById('rep-cache-size').value);
+  if (!seqStr || isNaN(cacheSize) || cacheSize < 1) {
+    document.getElementById('rep-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Dữ liệu không hợp lệ.</div>';
+    return;
+  }
+  const refs = seqStr.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+  let cache = []; // {key, lastUsed (counter), freq, insertOrder}
+  let counter = 0;
+  let insertOrder = 0;
+  let hits = 0;
+  let misses = 0;
+  const hitMissArr = []; // '1' if HIT, '0' if MISS — for Bit.renderBits visualization
+  let html = `<p><strong>Chính sách: ${policy}</strong> | Cache size: ${cacheSize} | Chuỗi: ${refs.join(', ')}</p>`;
+  html += `<table><tr><th>#</th><th>Tham chiếu</th><th>Cache trước</th><th>Hành động</th><th>Cache sau</th><th>Hit/Miss</th></tr>`;
+
+  refs.forEach((ref, idx) => {
+    counter++;
+    const cacheBefore = cache.map(c => c.key).join(', ') || '(trống)';
+    let action = '';
+    let isHit = cache.some(c => c.key === ref);
+    if (isHit) {
+      hits++;
+      action = 'Đã có trong cache';
+      const item = cache.find(c => c.key === ref);
+      item.lastUsed = counter;
+      item.freq++;
+    } else {
+      misses++;
+      if (cache.length < cacheSize) {
+        cache.push({ key: ref, lastUsed: counter, freq: 1, insertOrder: insertOrder++ });
+        action = `Nạp ${ref} vào cache (còn chỗ)`;
+      } else {
+        // Find victim
+        let victim;
+        if (policy === 'LRU') {
+          victim = cache.reduce((min, c) => c.lastUsed < min.lastUsed ? c : min, cache[0]);
+        } else if (policy === 'FIFO') {
+          victim = cache.reduce((min, c) => c.insertOrder < min.insertOrder ? c : min, cache[0]);
+        } else { // LFU
+          victim = cache.reduce((min, c) => c.freq < min.freq ? c : min, cache[0]);
+        }
+        action = `Thay ${victim.key} bằng ${ref} (${policy})`;
+        cache = cache.filter(c => c.key !== victim.key);
+        cache.push({ key: ref, lastUsed: counter, freq: 1, insertOrder: insertOrder++ });
+      }
+    }
+    const cacheAfter = cache.map(c => c.key).join(', ') || '(trống)';
+    hitMissArr.push(isHit ? '1' : '0');
+    html += `<tr><td>${idx + 1}</td><td><strong>${ref}</strong></td><td>${cacheBefore}</td><td>${action}</td><td>${cacheAfter}</td><td style="color:${isHit?'var(--success)':'var(--accent)'}; font-weight:bold;">${isHit ? 'HIT ✓' : 'MISS ✗'}</td></tr>`;
+  });
+  html += `</table>`;
+
+  const total = hits + misses;
+  const hitRatio = (hits / total * 100).toFixed(1);
+  // Use Bit.renderBits to visualize HIT (1) / MISS (0) pattern across all references
+  const pattern = hitMissArr.join('');
+  html += `<p class="mt-2"><strong>Mô phỏng HIT (1) / MISS (0) theo từng tham chiếu:</strong></p>`;
+  const tempWrap = document.createElement('div');
+  const bitRowEl = Bit.renderBits(pattern, { labels: false });
+  tempWrap.appendChild(bitRowEl);
+  html += tempWrap.innerHTML;
+  html += `<p style="font-size: 0.85rem; color: var(--gray-500);">Bit 1 (xanh) = HIT, bit 0 (trắng) = MISS. Có ${hits} bit 1 và ${misses} bit 0 trong ${total} tham chiếu.</p>`;
+  html += `<div class="result-box"><span class="result-label">Tổng kết:</span>Total: ${total} | HIT: ${hits} | MISS: ${misses} | Hit ratio: ${hitRatio}%</div>`;
+  document.getElementById('rep-result').innerHTML = html;
+}
+
+function calcHitRate() {
+  const tc = parseFloat(document.getElementById('tc-input').value);
+  const tm = parseFloat(document.getElementById('tm-input').value);
+  const h = parseFloat(document.getElementById('hit-ratio').value);
+  if (isNaN(tc) || isNaN(tm) || isNaN(h) || h < 0 || h > 1) {
+    document.getElementById('hit-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Dữ liệu không hợp lệ. Hit ratio trong [0, 1].</div>';
+    return;
+  }
+  const miss = 1 - h;
+  const penalty = tm - tc;
+  const tAvg1 = h * tc + miss * tm; // công thức gốc
+  const tAvg2 = tc + miss * tm; // cách giáo trình (penalty = tm)
+  const speedup1 = tm / tAvg1;
+  const speedup2 = tm / tAvg2;
+
+  let html = `<p><strong>Thông số:</strong> t_c = ${tc} ns, t_m = ${tm} ns, hit ratio = ${h}</p>`;
+  html += `<table>`;
+  html += `<tr><th>Đại lượng</th><th>Công thức</th><th>Giá trị</th></tr>`;
+  html += `<tr><td>Miss ratio</td><td>1 − h</td><td><strong>${miss.toFixed(3)}</strong></td></tr>`;
+  html += `<tr><td>Penalty (t_m − t_c)</td><td>${tm} − ${tc}</td><td><strong>${penalty.toFixed(2)} ns</strong></td></tr>`;
+  html += `<tr><td>t_avg (công thức gốc)</td><td>h·t_c + (1−h)·t_m</td><td><strong>${tAvg1.toFixed(3)} ns</strong></td></tr>`;
+  html += `<tr><td>t_avg (giáo trình, penalty = t_m)</td><td>t_c + (1−h)·t_m</td><td><strong>${tAvg2.toFixed(3)} ns</strong></td></tr>`;
+  html += `<tr><td>Speedup (theo công thức gốc)</td><td>t_m / t_avg</td><td><strong>${speedup1.toFixed(2)}×</strong></td></tr>`;
+  html += `<tr><td>Speedup (theo giáo trình)</td><td>t_m / t_avg</td><td><strong>${speedup2.toFixed(2)}×</strong></td></tr>`;
+  html += `</table>`;
+
+  // Visual bar
+  const hitPct = (h * 100).toFixed(1);
+  html += `<p class="mt-2"><strong>Biểu đồ tỉ lệ Hit/Miss:</strong></p>`;
+  html += `<div style="display:flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--gray-300);">`;
+  html += `<div style="width: ${hitPct}%; background: var(--success); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem;">HIT ${hitPct}%</div>`;
+  html += `<div style="width: ${(100 - hitPct).toFixed(1)}%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem;">MISS ${(100 - hitPct).toFixed(1)}%</div>`;
+  html += `</div>`;
+
+  html += `<div class="result-box"><span class="result-label">Kết luận:</strong>t_avg ≈ ${tAvg1.toFixed(2)} ns (gốc) hoặc ${tAvg2.toFixed(2)} ns (giáo trình). Cache giúp tăng tốc ~${speedup1.toFixed(1)}× so với không có cache.</div>`;
+  document.getElementById('hit-result').innerHTML = html;
+}
+
+function calcPSU() {
+  const cpu = parseInt(document.getElementById('cpu-select').value);
+  const gpu = parseInt(document.getElementById('gpu-select').value);
+  const ram = parseInt(document.getElementById('ram-select').value);
+  const storage = parseInt(document.getElementById('storage-select').value);
+  const others = parseInt(document.getElementById('others-select').value);
+  const total = cpu + gpu + ram + storage + others;
+  const psuNeed = total * 1.5;
+
+  // Recommended PSU
+  let recPSU, recType;
+  if (psuNeed <= 400) { recPSU = 400; recType = '80 PLUS White (Văn phòng)'; }
+  else if (psuNeed <= 500) { recPSU = 500; recType = '80 PLUS Bronze'; }
+  else if (psuNeed <= 650) { recPSU = 650; recType = '80 PLUS Bronze/Gold'; }
+  else if (psuNeed <= 750) { recPSU = 750; recType = '80 PLUS Gold'; }
+  else if (psuNeed <= 850) { recPSU = 850; recType = '80 PLUS Gold/Platinum'; }
+  else if (psuNeed <= 1000) { recPSU = 1000; recType = '80 PLUS Gold/Platinum'; }
+  else { recPSU = 1200; recType = '80 PLUS Platinum/Titanium'; }
+
+  let html = `<p><strong>Bảng công suất linh kiện:</strong></p>`;
+  html += `<table><tr><th>Linh kiện</th><th>Công suất (W)</th></tr>`;
+  html += `<tr><td>CPU</td><td>${cpu}</td></tr>`;
+  html += `<tr><td>GPU</td><td>${gpu}</td></tr>`;
+  html += `<tr><td>RAM</td><td>${ram}</td></tr>`;
+  html += `<tr><td>Storage</td><td>${storage}</td></tr>`;
+  html += `<tr><td>Others (MB + Fans)</td><td>${others}</td></tr>`;
+  html += `<tr style="background: var(--primary-light); font-weight: bold;"><td>TỔNG</td><td>${total} W</td></tr>`;
+  html += `</table>`;
+
+  html += `<p class="mt-2"><strong>Tính PSU cần thiết:</strong></p>`;
+  html += `<div class="code-block">PSU_cần = TỔNG × 1.5
+       = ${total} × 1.5
+       = <strong class="text-accent">${psuNeed.toFixed(1)} W</strong></div>`;
+
+  // Visual bar
+  const maxBar = Math.max(1200, recPSU + 100);
+  const psuPct = (psuNeed / maxBar * 100).toFixed(1);
+  const recPct = (recPSU / maxBar * 100).toFixed(1);
+  html += `<p class="mt-2"><strong>Biểu đồ so sánh công suất:</strong></p>`;
+  html += `<div style="position: relative; height: 40px;">`;
+  html += `<div style="display:flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--gray-300);">`;
+  html += `<div style="width: ${psuPct}%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem;">PSU cần: ${psuNeed.toFixed(0)}W</div>`;
+  html += `<div style="flex: 1; background: var(--gray-100);"></div>`;
+  html += `</div>`;
+  // Marker for recommended
+  html += `<div style="position: absolute; top: -4px; left: ${recPct}%; width: 3px; height: 38px; background: var(--accent);"></div>`;
+  html += `<div style="position: absolute; top: 32px; left: ${recPct}%; transform: translateX(-50%); font-size: 0.75rem; color: var(--accent); font-weight: bold;">${recPSU}W (khuyến nghị)</div>`;
+  html += `</div>`;
+
+  html += `<div class="result-box"><span class="result-label">Khuyến nghị:</span>Chọn PSU <strong>${recPSU}W</strong> (${recType}). PSU cần = ${psuNeed.toFixed(0)}W, chọn ${recPSU}W để có dự phòng và đạt hiệu suất tối ưu ở vùng 50-60% tải.</div>`;
+
+  html += `<p class="mt-2"><strong>Lý do chọn PSU dư dự phòng:</strong></p>`;
+  html += `<ul>`;
+  html += `<li>Chấp nhận spike dòng lúc boot (CPU/GPU có thể tiêu thụ gấp 1.5-2 lần TDP trong vài ms).</li>`;
+  html += `<li>PSU chạy ở 50-60% tải có hiệu suất cao nhất (vùng 80 PLUS Gold/Platinum).</li>`;
+  html += `<li>Kéo dài tuổi thọ PSU (ít nóng, ít stress linh kiện).</li>`;
+  html += `<li>Dư địa cho nâng cấp sau này (CPU/GPU đời mới thường tiêu thụ nhiều hơn).</li>`;
+  html += `</ul>`;
+
+  document.getElementById('psu-result').innerHTML = html;
+}
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Cache có $t_c = 4$ ns, RAM có $t_m = 60$ ns, $n = 5$ (temporal locality). Tính $t_{av}$ và speedup.",
+    answer: `t_av = (n·t_c + t_m) / n = (5·4 + 60) / 5 = (20 + 60) / 5 = 80 / 5 = <strong>16 ns</strong><br>
+    Speedup = t_m / t_av = 60 / 16 = <strong>3.75×</strong>`
+  },
+  {
+    question: "Direct Mapping: cache có 16 khối, RAM có 64 khối. Khối RAM 35 vào khối cache nào?",
+    answer: `K = i mod n = 35 mod 16<br>
+    35 : 16 = 2 dư 3<br>
+    → K = <strong>3</strong> (khối RAM 35 vào khối cache số 3)<br>
+    Cũng vào khối cache 3: các khối RAM 3, 19, 35, 51 (cách nhau 16).`
+  },
+  {
+    question: "Set-Associative 4-way: cache 16 khối. Khối RAM 25 vào set nào?",
+    answer: `Cache 16 khối, 4-way → số set s = 16/4 = 4.<br>
+    K = i mod s = 25 mod 4<br>
+    25 : 4 = 6 dư 1<br>
+    → K = <strong>1</strong> (khối RAM 25 vào set 1, có 4 way để chọn)`
+  },
+  {
+    question: "LRU với cache 3 khối, chuỗi tham chiếu: A, B, C, A, D, B. Tính hit rate.",
+    answer: `B1: A → MISS, cache=[A], LRU: A<br>
+    B2: B → MISS, cache=[A,B], LRU: A,B<br>
+    B3: C → MISS, cache=[A,B,C], LRU: A,B,C<br>
+    B4: A → HIT (A có trong cache), LRU cập nhật: B,C,A<br>
+    B5: D → MISS, cache đầy. LRU = B (cũ nhất) → thay B bằng D. Cache=[A,C,D], LRU: C,A,D<br>
+    B6: B → MISS (B đã bị thay), cache đầy. LRU = C → thay C bằng B. Cache=[A,D,B]<br>
+    <br>
+    Tổng: 6 tham chiếu, 1 HIT, 5 MISS.<br>
+    Hit rate = 1/6 ≈ <strong>16.7%</strong>`
+  },
+  {
+    question: "CPU có $t_c = 8$ ns, $t_m = 120$ ns, hit ratio = 0.95. Tính $t_{avg}$ (cách giáo trình) và speedup.",
+    answer: `t_avg = t_c + (1 − h)·t_m<br>
+    = 8 + 0.05·120<br>
+    = 8 + 6<br>
+    = <strong>14 ns</strong><br>
+    <br>
+    Speedup = t_m / t_avg = 120 / 14 ≈ <strong>8.57×</strong>`
+  },
+  {
+    question: "Cấu hình PC: CPU 105W, GPU 220W, RAM+Storage+Others 60W. Tính PSU cần và khuyến nghị.",
+    answer: `P_tổng = 105 + 220 + 60 = 385 W<br>
+    PSU_cần = 385 × 1.5 = <strong>577.5 W</strong><br>
+    <br>
+    Khuyến nghị: chọn PSU <strong>650W 80 PLUS Gold</strong> (vùng tối ưu hiệu suất, có dư địa nâng cấp).`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "Nguyên lý locality nào nói rằng 'dữ liệu vừa truy cập có khả năng được truy cập lại trong thời gian ngắn'?",
+    options: ["Spatial Locality", "Temporal Locality", "Sequential Locality", "Branch Locality"],
+    correct: 1,
+    explanation: "Temporal Locality (cục bộ thời gian): dữ liệu vừa dùng có khả năng dùng lại. Vd: biến đếm i trong vòng lặp."
+  },
+  {
+    question: "Công thức t_av với temporal locality là gì (n = số lần truy cập lặp)?",
+    options: ["(n·t_c + t_m) / n", "(n·t_c + t_m) / (n+1)", "n·t_c + t_m", "t_c + n·t_m"],
+    correct: 0,
+    explanation: "t_av = (n·t_c + t_m) / n. Tử số = n lần đọc cache + 1 lần đọc RAM. Mẫu số = n lần truy cập."
+  },
+  {
+    question: "Direct Mapping: cache 8 khối, RAM 32 khối. Khối RAM 13 vào khối cache nào?",
+    options: ["3", "5", "13", "0"],
+    correct: 1,
+    explanation: "K = i mod n = 13 mod 8 = 5. (13 : 8 = 1 dư 5). Khối RAM 13 → khối cache 5."
+  },
+  {
+    question: "Set-Associative 2-way: cache 8 khối (4 set × 2 way). Khối RAM 13 vào set nào?",
+    options: ["0", "1", "5", "13"],
+    correct: 1,
+    explanation: "K = i mod s = 13 mod 4 = 1 (s = 8/2 = 4). Khối RAM 13 vào set 1, có 2 way để chọn."
+  },
+  {
+    question: "Khi cache đầy, chính sách LRU thay khối nào?",
+    options: ["Khối vào cache đầu tiên", "Khối ít được dùng gần đây nhất", "Khối ngẫu nhiên", "Khối có tần suất dùng ít nhất"],
+    correct: 1,
+    explanation: "LRU (Least Recently Used) thay khối ít được dùng gần đây nhất. Khác FIFO ở chỗ LRU cập nhật 'độ mới' mỗi khi truy cập lại."
+  },
+  {
+    question: "Công thức tính PSU cần thiết (theo BTMT) là gì?",
+    options: ["P_CPU + P_GPU", "(P_CPU + P_GPU + P_Others) × 1.5", "P_CPU × 2 + P_GPU", "(P_CPU + P_GPU) × 2"],
+    correct: 1,
+    explanation: "PSU_cần = (P_CPU + P_GPU + P_RAM + P_Storage + P_Others) × 1.5. Hệ số 1.5 (150%) là hệ số dự phòng cho spike dòng và đạt hiệu suất tối ưu."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn</div>
+  <p>Đây là cách GIÁM KHẢO MUỐN THẤY khi chấm bài cache và PSU.</p>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Cache có t_c = 5 ns, RAM có t_m = 100 ns, hit ratio = 0.92. Tính t_avg và speedup. Sau đó tính PSU cho máy có CPU 65W, GPU 170W, Others 50W.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải — Phần 1: Hit Rate</strong>
+
+<strong>Công thức:</strong>
+  t_avg = t_c + (1 − h) · t_m
+  (theo cách giáo trình: penalty = t_m)
+  Speedup = t_m / t_avg
+
+<strong>Áp dụng:</strong>
+  t_avg = 5 + (1 − 0.92) · 100
+        = 5 + 0.08 · 100
+        = 5 + 8
+        = 13 ns
+
+  Speedup = 100 / 13 ≈ 7.69×
+
+<strong>Kết luận 1:</strong>
+  t_avg = 13 ns; cache giúp tăng tốc 7.69 lần.
+
+────────────────────────────────────────
+
+<strong>Bài giải — Phần 2: PSU</strong>
+
+<strong>Công thức:</strong>
+  PSU_cần = (P_CPU + P_GPU + P_Others) × 1.5
+
+<strong>Bước 1: Tổng công suất linh kiện</strong>
+  P_tổng = 65 + 170 + 50 = 285 W
+
+<strong>Bước 2: Nhân hệ số dự phòng 1.5</strong>
+  PSU_cần = 285 × 1.5 = 427.5 W
+
+<strong>Bước 3: Chọn PSU chuẩn</strong>
+  - PSU cần: 427.5 W
+  - PSU có sẵn: 400, 450, 500, 550, 600, 650 W...
+  - Chọn PSU ≥ 427.5 W → <strong>500W</strong>
+
+<strong>Kết luận 2:</strong>
+  Chọn PSU 500W (80 PLUS Bronze trở lên).
+  Lý do: 500W > 427.5W, chạy ở ~57% tải
+  (vùng tối ưu hiệu suất).</pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn viết công thức trước khi thay số</strong> — vd "t_avg = t_c + (1−h)·t_m" hoặc "PSU = (ΣP) × 1.5". Giám khảo cho điểm công thức ngay cả khi tính sai.</li>
+    <li><strong>Phần cache: tách rõ tử số và mẫu số</strong> — vd "(4·2 + 80)/4 = 88/4 = 22 ns". Từng bước rõ ràng, giám khảo dễ theo dõi.</li>
+    <li><strong>Mô phỏng LRU/FIFO bằng bảng</strong> — cột "Bước / Tham chiếu / Cache trước / Hành động / Cache sau / Hit/Miss". Đặc biệt quan trọng để giám khảo thấy bạn hiểu chính sách thay thế.</li>
+    <li><strong>Phần PSU: liệt kê bảng công suất từng linh kiện trước khi cộng</strong> — rõ ràng, dễ kiểm tra. Cuối cùng khuyến nghị PSU chuẩn (làm tròn lên giá trị có sẵn: 450W, 500W, 650W...).</li>
+    <li><strong>Kết luận rõ ràng ở mỗi phần</strong> — "t_avg = 13 ns; Speedup = 7.69×"; "Chọn PSU 500W". In đậm hoặc gạch chân để giám khảo tìm đáp số nhanh.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ Nhầm công thức temporal/spatial — nhớ: temporal mẫu = $n$, spatial mẫu = $m$, cả 2 mẫu = $n \cdot m$.</li>
+    <li>❌ Tính Direct Mapping nhầm thành $n \bmod i$ (đảo ngược) — luôn là $i \bmod n$.</li>
+    <li>❌ Set-Associative tính $s$ sai — $s = $ số khối cache / số way. Vd 8 khối, 2-way → 4 set.</li>
+    <li>❌ Nhầm LRU với FIFO — LRU xét "lần dùng gần đây nhất", FIFO chỉ xét "lần vào đầu tiên".</li>
+    <li>❌ Quên hệ số 1.5 khi tính PSU — đây là lỗi mất điểm nặng nhất phần BTMT.</li>
+    <li>❌ Làm tròn PSU xuống thay vì lên — vd PSU cần 427.5W thì chọn 450W/500W, KHÔNG chọn 400W (không đủ).</li>
+    <li>❌ Quên giải thích vì sao chọn PSU dư dự phòng — phải nhắc "hệ số 1.5 cho spike dòng + hiệu suất tối ưu ở 50-60% tải".</li>
+    <li>❌ Không vẽ bảng mô phỏng LRU/FIFO — chỉ ghi kết quả cuối → mất 70% điểm câu đó.</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Cache HIT/MISS:</strong> HIT = đọc từ cache (nhanh), MISS = đọc từ RAM (chậm) + nạp vào cache.</li>
+    <li><strong>3 nguyên lý locality:</strong> Temporal (thời gian), Spatial (không gian), kết hợp.</li>
+    <li><strong>t_av temporal</strong> = $\frac{n \cdot t_c + t_m}{n}$.</li>
+    <li><strong>t_av spatial</strong> = $\frac{m \cdot t_c + t_m}{m}$.</li>
+    <li><strong>t_av cả 2</strong> = $\frac{n \cdot m \cdot t_c + t_m}{n \cdot m}$.</li>
+    <li><strong>t_avg với hit ratio</strong> = $t_c + (1-h) \cdot (t_m - t_c)$ hoặc $t_c + (1-h) \cdot t_m$ (giáo trình).</li>
+    <li><strong>3 cách mapping:</strong> Direct ($K = i \bmod n$), Set-Associative ($K = i \bmod s$), Fully (bất kỳ).</li>
+    <li><strong>4 chính sách thay thế:</strong> Random, LRU, FIFO, LFU.</li>
+    <li><strong>PSU</strong> = $(P_{\text{CPU}} + P_{\text{GPU}} + P_{\text{RAM}} + P_{\text{Storage}} + P_{\text{Others}}) \times 1.5$.</li>
+    <li><strong>Bảng PSU:</strong> Văn phòng 300-400W, Gaming 600-750W, Workstation 1000W+.</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Mẹo thi nhanh</div>
+  <p>Bài 14 thường chia 2 phần rõ ràng:</p>
+  <p><strong>Phần KTMT (Cache):</strong> 4 bước vàng:</p>
+  <ol style="padding-left: 20px;">
+    <li>Viết công thức (temporal/spatial/hit ratio).</li>
+    <li>Thay số, tính t_av và speedup.</li>
+    <li>Nếu là mapping: tính $K = i \bmod n$ (hoặc $i \bmod s$).</li>
+    <li>Nếu là LRU/FIFO: vẽ bảng mô phỏng từng bước + tính hit rate.</li>
+  </ol>
+  <p><strong>Phần BTMT (PSU):</strong> 3 bước vàng:</p>
+  <ol style="padding-left: 20px;">
+    <li>Lập bảng công suất từng linh kiện.</li>
+    <li>Cộng tổng rồi nhân 1.5.</li>
+    <li>Làm tròn lên PSU chuẩn gần nhất + khuyến nghị loại 80 PLUS.</li>
+  </ol>
+</div>
+
+<div class="callout callout-exam">
+  <div class="callout-title">🎓 Chúc mừng hoàn thành 14 bài!</div>
+  <p>Bạn đã học xong toàn bộ 14 bài ôn thi KTMT-BTMT. Đừng quên:</p>
+  <ul style="padding-left: 20px;">
+    <li>Mở lại từng bài, xem phần <strong>"Cách trình bày bài thi"</strong> ở cuối mỗi bài — đây là "bí kíp" được điểm tối đa.</li>
+    <li>Làm lại quiz cho đến khi đạt 100%.</li>
+    <li>Tự giải lại bài tập không nhìn đáp án.</li>
+    <li>Ngủ sớm đêm trước thi. Đừng thức khuya ôn bài mới — ôn lại bài cũ thôi!</li>
+  </ul>
+  <p class="text-center" style="font-size: 1.15rem; color: var(--primary-dark); margin-top: 12px;"><strong>Quyết tâm 10 điểm! 🎓</strong></p>
+</div>
+
+<div class="nav-bottom">
+  <a href="13-pipeline.html" class="btn btn-ghost">← Bài 13: Pipeline &amp; Hazards</a>
+  <a href="../index.html" class="btn">🏠 Về mục lục</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 5: IEEE 754 Single (số ÂM) - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 5: IEEE 754 Single (số ÂM)</strong>
+  <span>5/14</span>
+</div>
+
+<h1>Bài 5: IEEE 754 Single Precision — Số thực ÂM (Mũ âm)</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Đây là <strong>điểm dễ sai nhất</strong> trong đề thi IEEE 754. Khi số âm <em>hoặc</em> phần lẻ &lt; 1, bạn phải dịch dấu chấm sang PHẢI → mũ k âm. Khoảng 60% sinh viên nhầm chiều dịch và ra sai cả bài.
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Kiến thức cốt lõi — Nhắc lại IEEE 754 Single</div>
+  <p>Một số thực được lưu thành <strong>32 bit</strong>, chia làm 3 trường:</p>
+  <table>
+    <tr><th>Trường</th><th>Số bit</th><th>Ý nghĩa</th></tr>
+    <tr><td><strong>S (Sign)</strong></td><td>1 bit</td><td>Dấu: 0 = dương, 1 = âm</td></tr>
+    <tr><td><strong>E (Exponent)</strong></td><td>8 bit</td><td>Mũ có bias 127 (E = k + 127)</td></tr>
+    <tr><td><strong>F (Fraction)</strong></td><td>23 bit</td><td>Phần lẻ của significand (bỏ bit 1 đầu)</td></tr>
+  </table>
+  <p>Công thức đổi từ IEEE 754 về số thập phân:</p>
+  <p>$$X = (-1)^S \times 2^{E-127} \times (1.F)_2$$</p>
+  <p>Trong đó <strong>k = E − 127</strong> là mũ thực (có thể âm hoặc dương), và <strong>1.F</strong> là significand (bit 1 đầu luôn ngầm hiểu, không lưu trong F).</p>
+</div>
+
+<h3>1. Tại sao số "âm" lại khó?</h3>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Hai "cái bẫy" của số âm</div>
+  <p>Sinh viên thường lẫn lộn hai loại "âm" trong IEEE 754:</p>
+  <table>
+    <tr><th>Loại "âm"</th><th>Nghĩa</th><th>Bit nào bị ảnh hưởng?</th></tr>
+    <tr>
+      <td><strong>1. Số thực âm (X &lt; 0)</strong></td>
+      <td>Toàn bộ số mang giá trị âm (vd −0.375)</td>
+      <td>Chỉ <strong>bit dấu S = 1</strong>. Phần |X| vẫn tính như số dương.</td>
+    </tr>
+    <tr>
+      <td><strong>2. Mũ âm (k &lt; 0)</strong></td>
+      <td>Khi |X| &lt; 1 (số nhỏ, vd 0.375, 0.0625...)</td>
+      <td>Mũ k âm, nhưng <strong>E = k + 127 vẫn luôn dương</strong> vì cộng 127.</td>
+    </tr>
+  </table>
+  <p>Hai loại này <strong>độc lập</strong>: số dương nhỏ (vd +0.375) có mũ âm nhưng S=0. Số âm lớn (vd −5.5) có mũ dương nhưng S=1. Trong bài này ta xét cả 2: <strong>số thực âm VÀ thường có mũ âm</strong>.</p>
+</div>
+
+<h3>2. Quy tắc dịch dấu chấm theo giá trị tuyệt đối |X|</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Hai quy tắc chuẩn hóa</div>
+  <p>Sau khi đổi |X| sang nhị phân, ta phải đưa về dạng <strong>1.something × 2^k</strong> (bit đầu tiên là 1). Quy tắc dịch dấu chấm:</p>
+  <table>
+    <tr><th>Trường hợp</th><th>Độ dịch</th><th>Kết quả</th><th>Dấu của k</th></tr>
+    <tr>
+      <td><strong>|X| ≥ 1</strong> (số lớn hoặc = 1)</td>
+      <td>Dịch dấu chấm sang <strong>TRÁI</strong> n vị trí</td>
+      <td>1.x × 2^n</td>
+      <td>k = +n (dương)</td>
+    </tr>
+    <tr>
+      <td><strong>|X| &lt; 1</strong> (số nhỏ, có 0 trước dấu chấm)</td>
+      <td>Dịch dấu chấm sang <strong>PHẢI</strong> n vị trí</td>
+      <td>1.x × 2^(−n)</td>
+      <td>k = −n (âm)</td>
+    </tr>
+  </table>
+  <p><strong>Tại sao?</strong> Dịch dấu chấm sang trái = chia cho 2 (mỗi lần dịch giá trị giảm một nửa) → cần nhân lại với $2^{+n}$ để giữ nguyên giá trị. Dịch sang phải = nhân với 2 → cần nhân với $2^{-n}$.</p>
+  <p>$$\underbrace{0.011_2}_{0.375} \xrightarrow{\text{dịch phải 2 vị trí}} \underbrace{1.1_2}_{1.5} \quad \Rightarrow \quad 0.011_2 = 1.1_2 \times 2^{-2}$$</p>
+</div>
+
+<h3>3. Công thức tính E khi k âm</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Công thức quan trọng nhất</div>
+  <p>$$\boxed{\,E = k + 127\,}$$</p>
+  <p><strong>Nhớ:</strong> Dù k âm (vd k = −2) hay dương (vd k = +3), công thức E = k + 127 vẫn áp dụng. Vì bias = 127 nên:</p>
+  <ul style="padding-left: 20px;">
+    <li>k = −2 → E = −2 + 127 = <strong>125</strong> = 01111101₂</li>
+    <li>k = −1 → E = −1 + 127 = <strong>126</strong> = 01111110₂</li>
+    <li>k = 0 → E = 0 + 127 = <strong>127</strong> = 01111111₂ (trung tính)</li>
+    <li>k = +3 → E = 3 + 127 = <strong>130</strong> = 10000010₂</li>
+  </ul>
+  <p><strong>Giá trị E luôn nằm trong [1, 254]</strong> để tránh 2 trường hợp đặc biệt: E=0 (số phi chuẩn hóa) và E=255 (infinity/NaN).</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1 — Nhầm chiều dịch dấu chấm</div>
+  <p>Khi thấy <code>0.011₂</code> (số &lt; 1), sinh viên hay "đổi thành 11 × 2^−2" hoặc "1.1 × 2^2". <strong>Cả hai đều sai!</strong></p>
+  <p>Đúng: phải dịch dấu chấm <strong>sang PHẢI</strong> để đưa bit 1 đầu lên trước dấu chấm → <code>1.1 × 2^(−2)</code>.</p>
+  <p><strong>Mẹo nhớ:</strong> Khi dịch dấu chấm sang PHẢI, mũ ÂM (để bù lại sự nhân 2). Khi dịch sang TRÁI, mũ DƯƠNG.</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #2 — Quên đặt bit dấu S</div>
+  <p>Vì đề là "số âm", bạn phải <strong>đặt S = 1</strong> ở bit đầu tiên. Hãy tính toàn bộ phần giá trị tuyệt đối |X| như số dương, rồi chỉ việc thêm S = 1 ở bước cuối cùng.</p>
+  <p>Nhiều sinh viên làm đúng mọi bước nhưng quên bit S → mất trọn câu.</p>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Bảng tra E cho mũ âm thường gặp</div>
+  <table>
+    <tr><th>k (mũ thực)</th><th>E = k + 127</th><th>E (nhị phân 8 bit)</th><th>Ứng dụng</th></tr>
+    <tr><td>−5</td><td>122</td><td>01111010</td><td>0.0001x</td></tr>
+    <tr><td>−4</td><td>123</td><td>01111011</td><td>0.001x</td></tr>
+    <tr><td>−3</td><td>124</td><td>01111100</td><td>0.01x</td></tr>
+    <tr><td>−2</td><td>125</td><td>01111101</td><td>0.1x (vd 0.375, 0.5)</td></tr>
+    <tr><td>−1</td><td>126</td><td>01111110</td><td>0.1x (vd 0.75)</td></tr>
+    <tr><td>0</td><td>127</td><td>01111111</td><td>1.x (vd 1.5)</td></tr>
+  </table>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Đề bài</div>
+  <p>Cho số thực <strong>X = −0.375</strong>. Hãy biểu diễn X theo chuẩn IEEE 754 Single Precision (32 bit). Trình bày chi tiết từng bước và kiểm tra lại kết quả.</p>
+  <p><strong>Tại sao chọn −0.375?</strong> Vì đây là số vừa âm vừa có mũ âm — đến đầy đủ "cái bẫy" của bài học. Tự giải được bài này là nắm chắc 80% bài học.</p>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+const steps = [
+  {
+    title: "Bước 1 — Tách dấu S và làm việc với |X|",
+    content: `
+      <p>Vì X = −0.375 &lt; 0 nên <strong>bit dấu S = 1</strong>. Lúc này ta chỉ cần tính trên <strong>giá trị tuyệt đối |X| = 0.375</strong> như một số dương bình thường, sau đó ghép S vào cuối. Việc này giúp đơn giản hóa — không phải lo dấu âm trong suốt quá trình tính.</p>
+      <div class="result-box"><span class="result-label">Bước 1:</span>S = 1, |X| = 0.375 (làm việc với 0.375)</div>
+      <p><strong>Vì sao làm vậy?</strong> Bit dấu S chỉ là một bit độc lập, nó không tham gia vào quá trình chuẩn hóa hay tính mũ. Tách riêng ra giúp tránh nhầm lẫn "phải làm gì với dấu trừ".</p>
+    `
+  },
+  {
+    title: "Bước 2 — Đổi 0.375 sang nhị phân (nhân 2 lấy phần nguyên)",
+    content: `
+      <p>Áp dụng phương pháp <strong>nhân 2 lấy phần nguyên, đọc từ trên xuống</strong> (đã học ở Bài 1):</p>
+      <div class="code-block">0.375 × 2 = <strong>0</strong>.75   → lấy 0, còn 0.75
+0.75  × 2 = <strong>1</strong>.5    → lấy 1, còn 0.5
+0.5   × 2 = <strong>1</strong>.0    → lấy 1, còn 0   → DỪNG
+→ 0.375₁₀ = 0.011₂</div>
+      <p><strong>Kiểm tra:</strong> $0.011_2 = 0 \cdot 2^{-1} + 1 \cdot 2^{-2} + 1 \cdot 2^{-3} = 0 + 0.25 + 0.125 = 0.375$ ✓</p>
+      <div class="result-box"><span class="result-label">Bước 2:</span>0.375₁₀ = 0.011₂</div>
+    `
+  },
+  {
+    title: "Bước 3 — Chuẩn hóa: đưa về dạng 1.F × 2^k",
+    content: `
+      <p>IEEE 754 yêu cầu dạng chuẩn hóa: <strong>bit đầu tiên phải là 1</strong>, đứng trước dấu chấm. Hiện tại <code>0.011₂</code> có bit đầu (sau dấu chấm) là 0 → chưa chuẩn.</p>
+      <p>Vì |X| = 0.375 &lt; 1 (có chữ số 0 trước dấu chấm), ta áp dụng quy tắc: <strong>dịch dấu chấm sang PHẢI</strong> cho đến khi gặp bit 1 đầu tiên.</p>
+      <div class="code-block">0.011₂   ← ban đầu, dấu chấm trước số 0
+ │
+ └─ dịch dấu chấm sang PHẢI 1 vị trí → 0.11₂   (bit đầu vẫn là 0)
+ │
+ └─ dịch tiếp sang PHẢI 1 vị trí nữa → 1.1₂   (bit đầu là 1 — ĐÚNG!)
+
+Tổng cộng: dịch 2 vị trí sang PHẢI</div>
+      <p><strong>Vì sao mũ là −2?</strong> Mỗi lần dịch dấu chấm sang phải = nhân số với 2. Để giữ nguyên giá trị, phải nhân với $2^{-1}$ mỗi lần. Dịch 2 lần → nhân với $2^{-2}$.</p>
+      <p>$$0.011_2 = 1.1_2 \times 2^{-2}$$</p>
+      <p><strong>Kiểm tra lại:</strong> $1.1_2 \times 2^{-2} = 1.5 \times 0.25 = 0.375$ ✓</p>
+      <div class="result-box"><span class="result-label">Bước 3:</span>0.011₂ = 1.1₂ × 2^(−2) → k = −2</div>
+    `
+  },
+  {
+    title: "Bước 4 — Tính E = k + 127",
+    content: `
+      <p>Áp dụng công thức $E = k + 127$ với k = −2:</p>
+      <div class="code-block">E = k + 127
+E = (−2) + 127
+E = 125</div>
+      <p><strong>Lưu ý quan trọng:</strong> Dù k âm, E vẫn luôn dương vì cộng với 127. Đây là lý do IEEE 754 dùng bias — để tránh phải lưu số âm trong trường mũ (vốn không có bit dấu riêng).</p>
+      <p>Đổi 125 sang nhị phân 8 bit (chia 2 lấy dư, đọc ngược):</p>
+      <div class="code-block">125 : 2 = 62 dư 1   (LSB)
+ 62 : 2 = 31 dư 0
+ 31 : 2 = 15 dư 1
+ 15 : 2 =  7 dư 1
+  7 : 2 =  3 dư 1
+  3 : 2 =  1 dư 1
+  1 : 2 =  0 dư 1   (MSB)
+
+→ 125 = 01111101₂  (8 bit, thêm 0 phía trước cho đủ)</div>
+      <p><strong>Trick kiểm tra nhanh:</strong> 127 = 01111111₂. Vì E = 127 − 2 = 125, ta chỉ cần lấy 01111111 trừ đi 2 → 01111101. ✓</p>
+      <div class="result-box"><span class="result-label">Bước 4:</span>E = 125 = 01111101₂</div>
+    `
+  },
+  {
+    title: "Bước 5 — Tạo F (23 bit)",
+    content: `
+      <p>Sau khi chuẩn hóa được $1.1_2 \times 2^{-2}$, phần significand là <strong>1.1</strong>. Trong IEEE 754, <strong>bit 1 đầu tiên (trước dấu chấm) luôn ngầm hiểu</strong>, không lưu trong F. Chỉ phần sau dấu chấm mới được lưu.</p>
+      <p>Ở đây phần sau dấu chấm chỉ có 1 bit là <code>1</code>. Phải pad (đệm) thêm 22 số 0 phía sau cho đủ 23 bit:</p>
+      <div class="code-block">significand = 1.1
+            ↑ bỏ bit này (ngầm hiểu)
+F = 1  +  22 số 0 pad phía sau
+F = 10000000000000000000000  (1 bit "1" + 22 bit "0" = 23 bit)</div>
+      <p><strong>Vì sao bỏ bit 1 đầu?</strong> Vì mọi số chuẩn hóa đều có bit 1 đầu → lưu nó sẽ lãng phí 1 bit. Bỏ đi giúp có thêm 1 bit cho phần lẻ → tăng độ chính xác.</p>
+      <div class="result-box"><span class="result-label">Bước 5:</span>F = 10000000000000000000000 (23 bit)</div>
+    `
+  },
+  {
+    title: "Bước 6 — Ghép 3 trường S | E | F",
+    content: `
+      <p>Đặt 3 trường cạnh nhau theo đúng thứ tự: <strong>S (1 bit) | E (8 bit) | F (23 bit) = 32 bit tổng cộng</strong>.</p>
+      <div class="code-block">S    E          F
+1 | 01111101 | 10000000000000000000000</div>
+      <p>Đổi sang hexa (gom 4 bit từ phải sang trái, thêm số 0 phía trước cho đủ nhóm 4):</p>
+      <div class="code-block">1 01111101 10000000000000000000000
+→ Thêm 1 số 0 phía trước cho đủ 32 bit (= 8 nhóm 4):
+0100 0000 0010 0011 1101 1000 0000 0000 0000 0000  ← sai! Đếm lại.
+
+Đếm chính xác: 1 + 8 + 23 = 32 bit. Gom 4 từ phải:
+1011 1110 1100 0000 0000 0000 0000 0000
+  B     E     C     0     0     0     0     0
+
+→ 0xBEC00000</div>
+      <p><strong>Cách kiểm tra:</strong> 8 nhóm × 4 bit = 32 bit. ✓</p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>−0.375₁₀ = 1 | 01111101 | 10000000000000000000000 = <strong>0xBEC00000</strong></div>
+    `
+  },
+  {
+    title: "Bước 7 — Kiểm tra lại (đảo ngược)",
+    content: `
+      <p>Áp dụng công thức $X = (-1)^S \times 2^{E-127} \times (1.F)_2$:</p>
+      <div class="code-block">S = 1 → (−1)^1 = −1
+E = 125 → k = E − 127 = 125 − 127 = −2
+F = 10000... → 1.F = 1.1₂ = 1 + 0.5 = 1.5
+
+X = (−1) × 2^(−2) × 1.5
+X = (−1) × 0.25 × 1.5
+X = −0.375 ✓</div>
+      <p>Khớp với đề bài ban đầu (X = −0.375) → ĐÚNG!</p>
+      <div class="result-box"><span class="result-label">Kết luận:</span>−0.375₁₀ = 0xBEC00000 = 1|01111101|10000000000000000000000 ✓</div>
+      <p><strong>Bài học rút ra:</strong> Khi đề có "số âm" + "giá trị tuyệt đối &lt; 1" → chắc chắn gặp cả 2 cái bẫy (S = 1 VÀ mũ âm). Hãy chậm lại ở Bước 3 để xác định đúng chiều dịch dấu chấm.</p>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🔄 Máy đổi số thực ↔ IEEE 754 (32 bit)</div>
+
+  <div class="tabs" data-tabs="ieee-am">
+    <button class="tab active">Số thực → IEEE 754</button>
+    <button class="tab">Hex 32-bit → Số thực</button>
+    <button class="tab">Bài tập random số âm</button>
+  </div>
+
+  <!-- Tab 1: Số thực → IEEE 754 -->
+  <div class="tab-content active">
+    <p>Nhập số thực (có thể âm, vd −0.375, −5.5, 0.0625):</p>
+    <input type="text" id="dec-input" value="-0.375" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono);">
+    <button class="btn mt-1" onclick="convertToIEEE()">Đổi!</button>
+    <div id="dec-steps" class="mt-2"></div>
+    <div id="dec-result"></div>
+  </div>
+
+  <!-- Tab 2: Hex 32-bit → Số thực -->
+  <div class="tab-content">
+    <p>Nhập hexa 32-bit (8 chữ số hex, vd BEC00000):</p>
+    <input type="text" id="hex-input" value="BEC00000" pattern="[0-9A-Fa-f]{8}" maxlength="8" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono); text-transform: uppercase;">
+    <button class="btn mt-1" onclick="convertFromIEEE()">Đổi!</button>
+    <div id="hex-steps" class="mt-2"></div>
+    <div id="hex-result"></div>
+  </div>
+
+  <!-- Tab 3: Bài tập random số âm -->
+  <div class="tab-content">
+    <p>Hệ thống sẽ đưa ra một số thực âm ngẫu nhiên. Bạn hãy tự tính nhẩm rồi bấm "Xem đáp án".</p>
+    <button class="btn btn-success" onclick="generateRandomNeg()">🎲 Sinh bài mới</button>
+    <div id="rand-question" class="result-box mt-2"></div>
+    <button class="btn btn-ghost mt-1" onclick="showRandAnswer()">Xem đáp án</button>
+    <div id="rand-answer" class="mt-2 hidden"></div>
+  </div>
+</div>
+
+<script>
+// --- Helper: convert decimal number to binary string (sign + integer part + fraction part) ---
+function numToBinaryStr(n) {
+  if (n === 0) return { sign: 0, intPart: '0', fracPart: '' };
+  const sign = n < 0 ? 1 : 0;
+  const absN = Math.abs(n);
+  const intPart = Math.floor(absN);
+  let fracPart = absN - intPart;
+
+  // Integer part: divide by 2
+  let intBin = '';
+  let tmp = intPart;
+  if (tmp === 0) intBin = '0';
+  while (tmp > 0) {
+    intBin = (tmp % 2) + intBin;
+    tmp = Math.floor(tmp / 2);
+  }
+
+  // Fraction part: multiply by 2
+  let fracBin = '';
+  let guard = 0;
+  while (fracPart !== 0 && guard < 30) {
+    const prod = fracPart * 2;
+    const bit = Math.floor(prod);
+    fracBin += bit;
+    fracPart = prod - bit;
+    guard++;
+  }
+  return { sign, intPart: intBin, fracPart: fracBin };
+}
+
+// --- Normalize 1.x × 2^k ---
+function normalize(intPart, fracPart) {
+  // Combine
+  let bits = intPart + fracPart;
+  // Find first '1'
+  const firstOne = bits.indexOf('1');
+  if (firstOne === -1) return { sig: '0', k: 0 };
+  // Position of decimal point: after intPart.length
+  // After normalization: decimal point goes just after first '1'
+  const pointPos = intPart.length;
+  const newK = pointPos - (firstOne + 1); // positive = need to shift left (k positive); negative = shift right (k negative)
+  // significand = bits from firstOne onwards, decimal point after first bit
+  const sig = bits.slice(firstOne + 1);
+  return { sig, k: newK };
+}
+
+function convertToIEEE() {
+  const input = document.getElementById('dec-input').value.trim();
+  const n = parseFloat(input);
+  if (isNaN(n)) {
+    document.getElementById('dec-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Hãy nhập số hợp lệ.</div>';
+    return;
+  }
+  if (n === 0) {
+    document.getElementById('dec-result').innerHTML = '<div class="result-box error"><span class="result-label">Lưu ý:</span> Số 0 được lưu đặc biệt: 00000000000000000000000000000000. Hãy nhập số khác 0.</div>';
+    return;
+  }
+
+  const { sign, intPart, fracPart } = numToBinaryStr(n);
+  let html = `<p><strong>Bước 1 — Tách dấu:</strong> X = ${n} ${sign === 1 ? '&lt; 0' : '≥ 0'} → <strong>S = ${sign}</strong>, |X| = ${Math.abs(n)}.</p>`;
+  html += `<p><strong>Bước 2 — Đổi |X| = ${Math.abs(n)} sang nhị phân:</strong></p>`;
+  html += `<div class="code-block">Phần nguyên: ${Math.floor(Math.abs(n))}₁₀ = ${intPart}₂<br>`;
+  if (fracPart) {
+    html += `Phần lẻ: 0.${(Math.abs(n) - Math.floor(Math.abs(n)))}₁₀ = 0.${fracPart}₂<br>`;
+  }
+  html += `→ ${Math.abs(n)}₁₀ = ${intPart}${fracPart ? '.' + fracPart : ''}₂</div>`;
+
+  const { sig, k } = normalize(intPart, fracPart);
+  html += `<p><strong>Bước 3 — Chuẩn hóa:</strong> đưa bit 1 đầu lên trước dấu chấm.</p>`;
+  html += `<div class="code-block">${intPart}${fracPart ? '.' + fracPart : ''}₂ = 1.${sig}₂ × 2^${k}</div>`;
+
+  const E = k + 127;
+  const Ebin = E.toString(2).padStart(8, '0');
+  html += `<p><strong>Bước 4 — Tính E = k + 127 = ${k} + 127 = ${E} = ${Ebin}₂</strong></p>`;
+
+  const F = (sig + '0'.repeat(23)).slice(0, 23);
+  html += `<p><strong>Bước 5 — Tạo F (23 bit):</strong> bỏ bit 1 đầu, lấy phần còn lại ${sig}, pad thêm ${23 - sig.length} số 0:</p>`;
+  html += `<div class="code-block">F = ${F}</div>`;
+
+  html += `<p><strong>Bước 6 — Ghép S | E | F:</strong></p>`;
+  const full32 = sign + Ebin + F;
+  html += `<div class="bit-row">`;
+  // Sign bit
+  html += `<div class="bit ${sign === 1 ? 'one' : 'zero'}" title="S (dấu)">${sign}</div>`;
+  // E bits
+  Ebin.split('').forEach(b => {
+    html += `<div class="bit ${b === '1' ? 'one' : 'zero'}" style="background:${b === '1' ? '#bf8f00' : 'white'}; color:${b === '1' ? 'white' : '#404040'};" title="E (mũ)">${b}</div>`;
+  });
+  // F bits
+  F.split('').forEach(b => {
+    html += `<div class="bit ${b === '1' ? 'one' : 'zero'}" title="F (lẻ)">${b}</div>`;
+  });
+  html += `</div>`;
+  html += `<div style="display:flex; gap:4px; justify-content:center; font-size:0.78rem; color:var(--gray-500);">`;
+  html += `<div style="width:36px; text-align:center;"><strong>S</strong></div>`;
+  for (let i = 0; i < 8; i++) html += `<div style="width:36px; text-align:center;">E</div>`;
+  for (let i = 0; i < 23; i++) html += `<div style="width:36px; text-align:center;">F</div>`;
+  html += `</div>`;
+
+  // Hex
+  let hexStr = '';
+  for (let i = 0; i < 32; i += 4) {
+    hexStr += parseInt(full32.slice(i, i + 4), 2).toString(16).toUpperCase();
+  }
+
+  document.getElementById('dec-steps').innerHTML = html;
+  document.getElementById('dec-result').innerHTML = `<div class="result-box"><span class="result-label">Kết quả:</span>${n}₁₀ = ${sign}|${Ebin}|${F} = <strong>0x${hexStr}</strong></div>`;
+}
+
+function convertFromIEEE() {
+  const hexStr = document.getElementById('hex-input').value.trim().toUpperCase();
+  if (!/^[0-9A-F]{8}$/.test(hexStr)) {
+    document.getElementById('hex-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Cần đúng 8 chữ số hexa (0-9, A-F).</div>';
+    return;
+  }
+  // Hex -> 32-bit binary
+  let bin32 = '';
+  for (const ch of hexStr) {
+    bin32 += parseInt(ch, 16).toString(2).padStart(4, '0');
+  }
+  const S = bin32[0];
+  const E = bin32.slice(1, 9);
+  const F = bin32.slice(9, 32);
+  const Edec = parseInt(E, 2);
+  const k = Edec - 127;
+
+  let html = `<p><strong>Bước 1 — Tách 3 trường:</strong></p>`;
+  html += `<div class="code-block">32-bit: ${bin32}
+S = ${S}
+E = ${E} = ${Edec}₁₀
+F = ${F}</div>`;
+
+  html += `<p><strong>Bước 2 — Tính mũ thực k = E − 127 = ${Edec} − 127 = ${k}</strong></p>`;
+  html += `<p><strong>Bước 3 — Tính significand 1.F:</strong></p>`;
+  // Compute 1.F as decimal
+  let frac = 0;
+  for (let i = 0; i < F.length; i++) {
+    if (F[i] === '1') frac += Math.pow(2, -(i + 1));
+  }
+  const sig = 1 + frac;
+  html += `<div class="code-block">1.${F}₂ = 1 + ${frac.toFixed(10).replace(/0+$/,'').replace(/\.$/,'')} = ${sig}</div>`;
+
+  const sign = (S === '1') ? -1 : 1;
+  const value = sign * Math.pow(2, k) * sig;
+
+  html += `<p><strong>Bước 4 — Áp công thức X = (−1)^S × 2^k × 1.F:</strong></p>`;
+  html += `<div class="code-block">X = (−1)^${S} × 2^${k} × ${sig.toFixed(6).replace(/0+$/,'').replace(/\.$/,'')}
+X = ${sign} × ${Math.pow(2, k)} × ${sig.toFixed(6).replace(/0+$/,'').replace(/\.$/,'')}
+X = ${value}</div>`;
+
+  document.getElementById('hex-steps').innerHTML = html;
+  document.getElementById('hex-result').innerHTML = `<div class="result-box"><span class="result-label">Kết quả:</span>0x${hexStr} = ${value}</div>`;
+}
+
+let currentRand = null;
+function generateRandomNeg() {
+  // Pick a number that's negative AND likely has small magnitude (so k may be negative)
+  const choices = [-0.5, -0.25, -0.75, -0.375, -0.125, -0.0625, -1.5, -2.5, -0.625, -0.4375, -3.25, -0.1875];
+  currentRand = choices[Math.floor(Math.random() * choices.length)];
+  document.getElementById('rand-question').innerHTML = `<span class="result-label">Câu hỏi:</span>Biểu diễn <strong>X = ${currentRand}</strong> theo IEEE 754 Single Precision. Trình bày 7 bước.`;
+  document.getElementById('rand-answer').classList.add('hidden');
+}
+
+function showRandAnswer() {
+  if (!currentRand) return;
+  // Compute the answer
+  const n = currentRand;
+  const { sign, intPart, fracPart } = numToBinaryStr(n);
+  const { sig, k } = normalize(intPart, fracPart);
+  const E = k + 127;
+  const Ebin = E.toString(2).padStart(8, '0');
+  const F = (sig + '0'.repeat(23)).slice(0, 23);
+  const full32 = sign + Ebin + F;
+  let hexStr = '';
+  for (let i = 0; i < 32; i += 4) {
+    hexStr += parseInt(full32.slice(i, i + 4), 2).toString(16).toUpperCase();
+  }
+  const ans = document.getElementById('rand-answer');
+  ans.classList.remove('hidden');
+  ans.innerHTML = `<div class="result-box">
+    <span class="result-label">Đáp án:</span>
+    <strong>${n}₁₀</strong><br>
+    B1: S = ${sign}, |X| = ${Math.abs(n)}<br>
+    B2: |X| = ${intPart}${fracPart ? '.' + fracPart : ''}₂<br>
+    B3: Chuẩn hóa → 1.${sig}₂ × 2^${k}<br>
+    B4: E = ${k} + 127 = ${E} = ${Ebin}₂<br>
+    B5: F = ${F}<br>
+    B6: Ghép → <strong>${sign}|${Ebin}|${F}</strong><br>
+    B7: Hex = <strong>0x${hexStr}</strong>
+  </div>`;
+}
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự giải trước (viết ra giấy), sau đó bấm "Xem đáp án" để đối chiếu.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Biểu diễn <strong>X = −0.5</strong> theo IEEE 754 Single Precision.",
+    answer: `B1: S = 1, |X| = 0.5<br>
+    B2: 0.5 × 2 = 1.0 → lấy 1, còn 0 → DỪNG → 0.5₁₀ = 0.1₂<br>
+    B3: 0.1₂ → dịch dấu chấm sang PHẢI 1 vị trí → 1.0₂ × 2^(−1) → k = −1<br>
+    B4: E = −1 + 127 = 126 = 01111110₂<br>
+    B5: F = 00000000000000000000000 (chỉ còn "0" sau bit 1 đầu, pad 23 số 0)<br>
+    B6: 1 | 01111110 | 00000000000000000000000<br>
+    <br>
+    Hex: 1011 1111 0000 0000 0000 0000 0000 0000 = <strong>0xBF000000</strong><br>
+    <br>
+    Kiểm tra: X = (−1)^1 × 2^(126−127) × 1.0 = −1 × 0.5 × 1.0 = −0.5 ✓`
+  },
+  {
+    question: "Biểu diễn <strong>X = −1.5</strong> theo IEEE 754 Single Precision. (Lưu ý: số này &lt; 0 nhưng |X| &gt; 1 nên k DƯƠNG)",
+    answer: `B1: S = 1, |X| = 1.5<br>
+    B2: Phần nguyên 1 = 1₂; phần lẻ 0.5 = 0.1₂ → 1.5₁₀ = 1.1₂<br>
+    B3: 1.1₂ đã có bit 1 đầu → chuẩn hóa: 1.1₂ × 2^0 → k = 0 (KHÔNG dịch dấu chấm)<br>
+    B4: E = 0 + 127 = 127 = 01111111₂<br>
+    B5: F = 10000000000000000000000 (lấy phần sau dấu chấm "1", pad 22 số 0)<br>
+    B6: 1 | 01111111 | 10000000000000000000000<br>
+    <br>
+    Hex: 1011 1111 1100 0000 0000 0000 0000 0000 = <strong>0xBFC00000</strong><br>
+    <br>
+    Kiểm tra: X = (−1)^1 × 2^(127−127) × 1.5 = −1 × 1 × 1.5 = −1.5 ✓<br>
+    <br>
+    <em>Bài học: số thực âm không nhất thiết mũ âm! Phải xem |X| lớn hay nhỏ hơn 1.</em>`
+  },
+  {
+    question: "Biểu diễn <strong>X = −0.0625</strong> theo IEEE 754 Single Precision.",
+    answer: `B1: S = 1, |X| = 0.0625<br>
+    B2: 0.0625 × 2 = 0.125 → 0<br>
+    0.125 × 2 = 0.25 → 0<br>
+    0.25 × 2 = 0.5 → 0<br>
+    0.5 × 2 = 1.0 → 1, còn 0 → DỪNG<br>
+    → 0.0625₁₀ = 0.0001₂<br>
+    B3: 0.0001₂ → dịch dấu chấm sang PHẢI 4 vị trí → 1.0₂ × 2^(−4) → k = −4<br>
+    B4: E = −4 + 127 = 123 = 01111011₂<br>
+    B5: F = 00000000000000000000000<br>
+    B6: 1 | 01111011 | 00000000000000000000000<br>
+    <br>
+    Hex: 1011 1101 1000 0000 0000 0000 0000 0000 = <strong>0xBD800000</strong><br>
+    <br>
+    Kiểm tra: X = (−1)^1 × 2^(123−127) × 1.0 = −1 × 0.0625 × 1.0 = −0.0625 ✓`
+  },
+  {
+    question: "Đảo ngược: cho <strong>0xBF800000</strong>, tìm X thập phân.",
+    answer: `B1: 0xBF800000 = 1011 1111 1000 0000 0000 0000 0000 0000<br>
+    Tách: S = 1, E = 01111111 = 127, F = 00000000000000000000000<br>
+    <br>
+    B2: k = E − 127 = 127 − 127 = 0 (mũ trung tính!)<br>
+    <br>
+    B3: 1.F = 1.000...₀ = 1.0<br>
+    <br>
+    B4: X = (−1)^1 × 2^0 × 1.0 = −1 × 1 × 1.0 = <strong>−1.0</strong><br>
+    <br>
+    <em>Đây là biểu diễn của số nguyên −1 trong IEEE 754. E = 01111111 (= 127) là dấu hiệu nhận biết "mũ thực = 0", tức số có dạng 1.x (không cần dịch dấu chấm).</em>`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem; line-height: 1.7;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "Khi biểu diễn số thực ÂM theo IEEE 754, bit dấu S có giá trị bao nhiêu?",
+    options: ["S = 0 (vì bit đầu tiên luôn 0)", "S = 1 (vì số âm)", "Tùy thuộc vào mũ", "S = −1"],
+    correct: 1,
+    explanation: "S = 1 cho số âm, S = 0 cho số dương. Bit dấu độc lập với phần giá trị."
+  },
+  {
+    question: "Khi |X| < 1 (số nhỏ hơn 1, vd 0.375), để chuẩn hóa 1.F × 2^k, ta dịch dấu chấm theo chiều nào và mũ k có dấu gì?",
+    options: ["Trái, k dương", "Phải, k âm", "Trái, k âm", "Phải, k dương"],
+    correct: 1,
+    explanation: "Vì có bit 0 trước dấu chấm, phải dịch dấu chấm sang PHẢI để đưa bit 1 đầu lên trước dấu chấm → k âm."
+  },
+  {
+    question: "Với k = −2, giá trị E trong trường mũ 8 bit là bao nhiêu?",
+    options: ["E = −2 (sẽ lưu dạng bù 2)", "E = 125 = 01111101₂", "E = 127 = 01111111₂", "E = 129 = 10000001₂"],
+    correct: 1,
+    explanation: "E = k + 127 = −2 + 127 = 125 = 01111101₂. E luôn dương vì bias = 127."
+  },
+  {
+    question: "Bias của IEEE 754 Single Precision là bao nhiêu và tại sao cần bias?",
+    options: ["Bias = 127, để tránh lưu số âm trong trường mũ", "Bias = 255, để tăng độ chính xác", "Bias = 0, để đơn giản", "Bias = 1023, cho 11 bit mũ"],
+    correct: 0,
+    explanation: "Bias = 2^(8-1) − 1 = 127. Nhờ bias, E luôn dương → không cần bit dấu cho mũ."
+  },
+  {
+    question: "Số −1.5 có mũ k bằng bao nhiêu?",
+    options: ["k = −1 (vì số âm)", "k = 0 (vì 1.5 đã ở dạng 1.x)", "k = +1", "k = +127"],
+    correct: 1,
+    explanation: "−1.5 = −(1.1₂) = −(1.1 × 2^0). |X| = 1.5 ≥ 1 nên đã chuẩn, không cần dịch dấu chấm → k = 0. Số 'âm' không có nghĩa là mũ 'âm'!"
+  },
+  {
+    question: "Điểm dễ sai nhất khi biểu diễn số thực ÂM có |X| < 1 là gì?",
+    options: ["Quên đặt S = 1", "Nhầm chiều dịch dấu chấm → sai dấu của k", "Tính sai E = k + 127", "Cả A, B và C đều dễ sai"],
+    correct: 3,
+    explanation: "Cả 3 lỗi trên đều rất phổ biến. Sinh viên hay quên S=1, nhầm chiều dịch dấu chấm (sang trái thay vì phải), và đôi khi quên công thức E = k + 127."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn</div>
+  <p>Đây là cách GIÁM KHẢO MUỐN THẤY. Học theo mẫu này để được điểm tối đa, ngay cả khi tính sai một bước vẫn được điểm phần bước còn lại.</p>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Biểu diễn số thực X = −0.375 theo chuẩn IEEE 754 Single Precision. Kiểm tra lại kết quả.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải: Biểu diễn −0.375 theo IEEE 754 Single</strong>
+
+<strong>Bước 1 — Xác định dấu:</strong>
+X = −0.375 &lt; 0 → S = 1
+Làm việc với |X| = 0.375 (như số dương)
+
+<strong>Bước 2 — Đổi |X| sang nhị phân (nhân 2 lấy phần nguyên):</strong>
+0.375 × 2 = 0.75   → 0
+0.75  × 2 = 1.5    → 1
+0.5   × 2 = 1.0    → 1, còn 0 → DỪNG
+→ 0.375₁₀ = 0.011₂
+
+<strong>Bước 3 — Chuẩn hóa (đưa về 1.F × 2^k):</strong>
+0.011₂ có bit 0 đầu → chưa chuẩn.
+|X| &lt; 1 nên dịch dấu chấm sang PHẢI:
+0.011 → 0.11 (dịch 1) → 1.1 (dịch 2)
+→ 0.011₂ = 1.1₂ × 2^(−2), k = −2
+
+<strong>Bước 4 — Tính E:</strong>
+E = k + 127 = −2 + 127 = 125
+125 = 01111101₂
+
+<strong>Bước 5 — Tạo F (23 bit):</strong>
+Significand = 1.1, bỏ bit 1 đầu → F = "1"
+Pad 22 số 0 phía sau:
+F = 10000000000000000000000
+
+<strong>Bước 6 — Ghép S | E | F:</strong>
+1 | 01111101 | 10000000000000000000000
+= 10111110110000000000000000000000
+= <strong>0xBEC00000</strong>
+
+<strong>Bước 7 — Kiểm tra:</strong>
+X = (−1)^1 × 2^(125−127) × (1.1)₂
+  = (−1) × 2^(−2) × 1.5
+  = (−1) × 0.25 × 1.5
+  = −0.375 ✓ (khớp đề bài)
+
+<strong>Kết luận: −0.375₁₀ = 0xBEC00000</strong></pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn chia thành 7 bước có tiêu đề rõ ràng</strong> (B1, B2... B7). Giám khảo chấm theo từng bước, có sai 1 bước vẫn được điểm các bước còn lại.</li>
+    <li><strong>Ở Bước 3, ghi rõ "dịch dấu chấm sang PHẢI n vị trí" hoặc "TRÁI n vị trí"</strong> — chữ "PHẢI" / "TRÁI" phải xuất hiện trong bài làm. Đây là điểm mấu chốt giám khảo tìm.</li>
+    <li><strong>Luôn có Bước 7 "Kiểm tra"</strong> bằng cách áp công thức $X = (-1)^S \times 2^{E-127} \times 1.F$ — được điểm cộng rất lớn.</li>
+    <li><strong>Kết luận cuối bài ghi đậm</strong> cả dạng nhị phân lẫn hexa (vd <code>−0.375 = 1|01111101|1000... = 0xBEC00000</code>).</li>
+    <li><strong>Đối với số thực ÂM có |X| &lt; 1, ghi chú "Mũ âm vì |X| &lt; 1"</strong> — giám khảo thấy bạn hiểu "tại sao" sẽ cho điểm cao hơn.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ <strong>Quên đặt S = 1</strong> cho số âm → mất trọn câu dù tính đúng phần còn lại.</li>
+    <li>❌ <strong>Nhầm chiều dịch dấu chấm</strong> (sang trái thay vì phải khi |X| &lt; 1) → k sai dấu → E sai → toàn bộ sai.</li>
+    <li>❌ <strong>Quên công thức E = k + 127</strong>, viết luôn E = k (âm) — không thể vì E là 8 bit không dấu.</li>
+    <li>❌ <strong>Quên bỏ bit 1 đầu khi tạo F</strong>, ghi cả 24 bit → F sai.</li>
+    <li>❌ <strong>F không đủ 23 bit</strong> (quên pad số 0 phía sau) → cấu trúc 32 bit sai.</li>
+    <li>❌ <strong>Đổi hex sai</strong> vì đếm nhầm nhóm 4 bit. Luôn thêm số 0 phía trước để tổng số bit chia hết cho 4 trước khi gom.</li>
+    <li>❌ <strong>Không có Bước kiểm tra</strong> → mất điểm cộng, giám khó tin tưởng kết quả.</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Bit dấu S = 1 cho số âm, S = 0 cho số dương.</strong> S độc lập với mũ.</li>
+    <li><strong>Đối với số thực âm, chỉ cần đặt S = 1</strong>, sau đó tính trên |X| như số dương.</li>
+    <li><strong>Khi |X| &lt; 1</strong> (có bit 0 trước dấu chấm), dịch dấu chấm sang <strong>PHẢI</strong> → mũ k <strong>âm</strong>.</li>
+    <li><strong>Khi |X| ≥ 1</strong>, dịch dấu chấm sang <strong>TRÁI</strong> → mũ k <strong>dương</strong> (hoặc 0).</li>
+    <li><strong>Công thức E = k + 127</strong> luôn đúng, dù k âm hay dương. E luôn dương.</li>
+    <li><strong>F = 23 bit</strong>, bỏ bit 1 đầu (ngầm hiểu), pad số 0 phía sau cho đủ.</li>
+    <li><strong>7 bước chuẩn:</strong> S → nhị phân → chuẩn hóa → E → F → ghép → kiểm tra.</li>
+    <li><strong>Kiểm tra</strong> bằng công thức $X = (-1)^S \times 2^{E-127} \times 1.F$.</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Mẹo thi nhanh</div>
+  <p>Khi gặp đề "số thực ÂM", qua 3 dòng đầu tiên hãy xác định:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>(1) S = ?</strong> → luôn 1 nếu đề ghi "âm", "−".</li>
+    <li><strong>(2) |X| &lt; 1 hay ≥ 1?</strong> → quyết định chiều dịch và dấu của k.</li>
+    <li><strong>(3) Số có phần lẻ hữu hạn không?</strong> → nếu |X| có dạng 0.5, 0.25, 0.125... (lũy thừa 2) thì phần lẻ hữu hạn, dễ tính. Nếu là 0.1, 0.3... → phần lẻ vô hạn, đề thi thường tránh.</li>
+  </ul>
+  <p>Nhẩm nhanh: <strong>0.5 → k = −1</strong>, <strong>0.25 → k = −2</strong>, <strong>0.125 → k = −3</strong>, <strong>0.0625 → k = −4</strong>. (vì $0.5 = 2^{-1}$, $0.25 = 2^{-2}$...)</p>
+</div>
+
+<div class="nav-bottom">
+  <a href="04-ieee754-single.html" class="btn btn-ghost">← Bài 4: IEEE 754 (số dương)</a>
+  <a href="06-ieee754-dao.html" class="btn">Bài 6: Đảo ngược + Double →</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

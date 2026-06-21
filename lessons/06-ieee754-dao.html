@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 6: Đảo ngược IEEE 754 + Double - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 6: Đảo ngược IEEE 754 + Double Precision</strong>
+  <span>6/14</span>
+</div>
+
+<h1>Bài 6: Đảo ngược IEEE 754 + Double Precision</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Bài trước bạn đã học cách đổi <strong>số thập phân → 32 bit</strong>. Bài này làm ngược lại: cho 32 bit (hoặc 64 bit), tìm số thập phân. Đây là dạng đề thi phổ biến thứ hai — và là cầu nối sang <strong>Double Precision 64 bit</strong>.
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Kiến thức cốt lõi — Đảo ngược là gì?</div>
+  <p><strong>Đảo ngược IEEE 754</strong> là quá trình <em>từ 32 bit nhị phân (hoặc hexa), tìm lại số thập phân ban đầu</em>. Đây là thao tác ngược của Bài 4 &amp; 5.</p>
+  <p>Công thức仍然是:</p>
+  <p>$$X = (-1)^S \times 2^{E - \text{bias}} \times (1.F)_2$$</p>
+  <p>Quy trình 3 bước:</p>
+  <ol style="padding-left: 20px;">
+    <li><strong>Tách 3 trường</strong> S | E | F theo đúng số bit.</li>
+    <li><strong>Tính mũ thực</strong> k = E − bias.</li>
+    <li><strong>Tính significand</strong> 1.F (thêm bit 1 đầu) rồi áp công thức.</li>
+  </ol>
+</div>
+
+<h3>1. So sánh Single vs Double Precision</h3>
+
+<table>
+  <tr>
+    <th>Đặc điểm</th>
+    <th>Single Precision</th>
+    <th>Double Precision</th>
+  </tr>
+  <tr><td>Tổng số bit</td><td>32</td><td>64</td></tr>
+  <tr><td>Bit dấu S</td><td>1</td><td>1</td></tr>
+  <tr><td>Bit mũ E</td><td>8</td><td>11</td></tr>
+  <tr><td>Bit lẻ F</td><td>23</td><td>52</td></tr>
+  <tr><td>Bias</td><td>127</td><td>1023</td></tr>
+  <tr><td>Khoảng mũ thực k</td><td>[−126, +127]</td><td>[−1022, +1023]</td></tr>
+  <tr><td>Độ chính xác (chữ số thập phân)</td><td>~7–8 chữ số</td><td>~15–16 chữ số</td></tr>
+  <tr><td>Kiểu dữ liệu</td><td><code>float</code> (C/C++)</td><td><code>double</code> (C/C++)</td></tr>
+  <tr><td>Ứng dụng</td><td>Đồ họa, game (nhanh, ít tốn RAM)</td><td>Khoa học, tài chính (cần chính xác cao)</td></tr>
+</table>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Cách nhớ bias</div>
+  <p>Bias = $2^{n-1} - 1$ với n là số bit của trường E.</p>
+  <ul style="padding-left: 20px;">
+    <li>Single: E 8 bit → bias = $2^7 - 1 = 127$</li>
+    <li>Double: E 11 bit → bias = $2^{10} - 1 = 1023$</li>
+  </ul>
+  <p>Khi gặp đề Double, <strong>thay 127 bằng 1023</strong> trong mọi công thức. Các bước còn lại hoàn toàn giống Single.</p>
+</div>
+
+<h3>2. Công thức chi tiết</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 3 công thức áp dụng cho cả Single và Double</div>
+  <p><strong>1. Mũ thực:</strong></p>
+  <p>$$k = E - \text{bias} \quad \begin{cases}\text{bias} = 127 & \text{(Single)} \\ \text{bias} = 1023 & \text{(Double)}\end{cases}$$</p>
+
+  <p><strong>2. Significand:</strong></p>
+  <p>$$(1.F)_2 = 1 + \sum_{i=1}^{n} F_i \cdot 2^{-i}$$</p>
+  <p>Với $n = 23$ (Single) hoặc $n = 52$ (Double). <em>Lưu ý:</em> bit $F_1$ ở vị trí $2^{-1} = 0.5$, $F_2$ ở $2^{-2} = 0.25$, v.v.</p>
+
+  <p><strong>3. Trị số thập phân:</strong></p>
+  <p>$$X = (-1)^S \times 2^k \times (1.F)_2$$</p>
+</div>
+
+<h3>3. Bảng giá trị 1.F thường gặp</h3>
+
+<table>
+  <tr><th>F (nhị phân)</th><th>1.F (nhị phân)</th><th>1.F (thập phân)</th></tr>
+  <tr><td>000...0</td><td>1.0</td><td>1.0</td></tr>
+  <tr><td>100...0</td><td>1.1</td><td>1.5</td></tr>
+  <tr><td>010...0</td><td>1.01</td><td>1.25</td></tr>
+  <tr><td>110...0</td><td>1.11</td><td>1.75</td></tr>
+  <tr><td>001...0</td><td>1.001</td><td>1.125</td></tr>
+  <tr><td>011...0</td><td>1.011</td><td>1.375</td></tr>
+  <tr><td>101...0</td><td>1.101</td><td>1.625</td></tr>
+  <tr><td>111...0</td><td>1.111</td><td>1.875</td></tr>
+</table>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1 — Tách sai số bit của từng trường</div>
+  <p>Đề thi hay cho cả Single và Double trong cùng một bài. Sinh viên hay tách nhầm (vd dùng 8 bit mũ cho Double, hoặc 11 bit mũ cho Single).</p>
+  <p><strong>Mẹo nhớ:</strong> Single = "1-8-23" (tổng 32), Double = "1-11-52" (tổng 64). Hai con số này phải học thuộc.</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #2 — Quên thêm bit 1 đầu vào F</div>
+  <p>Khi tính significand, phải <strong>thêm "1." phía trước F</strong>. Nhiều sinh viên chỉ tính phần F mà quên bit 1 đầu → kết quả nhỏ hơn thực tế một nửa (vì thiếu 1.0).</p>
+  <p>Đúng: <code>F = 010...0</code> → <code>1.F = 1.01₂ = 1.25</code> (không phải 0.25).</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #3 — Dùng bias 127 cho Double</div>
+  <p>Khi đề Double, phải dùng $E - 1023$, KHÔNG phải $E - 127$. Nếu dùng 127, k sẽ sai lệch 896 (lớn hơn 1023 − 127 = 896) → kết quả lệch $2^{896}$ lần, hoàn toàn sai.</p>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Đề bài 1 — Đảo ngược Single Precision</div>
+  <p>Cho số nhị phân 32 bit: <strong>1 10000010 01000000000000000000000</strong>. Tìm số thập phân X tương ứng theo chuẩn IEEE 754 Single.</p>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+const steps = [
+  {
+    title: "Bước 1 — Tách 3 trường S | E | F",
+    content: `
+      <p>Theo cấu trúc Single (1-8-23), ta tách:</p>
+      <div class="code-block">32 bit: 1 10000010 01000000000000000000000
+
+Tách:
+S = 1                  (1 bit đầu)
+E = 10000010           (8 bit tiếp theo)
+F = 01000000000000000000000  (23 bit cuối)</div>
+      <p><strong>Vì sao tách được?</strong> Vì Single Precision có cấu trúc cố định 1-8-23. Đề đã chèn khoảng trắng phân tách → dễ nhìn, nhưng nếu đề không chèn khoảng, ta vẫn phải tách đúng theo cấu trúc.</p>
+      <p>Đổi E từ nhị phân sang thập phân:</p>
+      <div class="code-block">E = 10000010₂
+  = 1·2^7 + 0·2^6 + 0·2^5 + 0·2^4 + 0·2^3 + 0·2^2 + 1·2^1 + 0·2^0
+  = 128 + 0 + 0 + 0 + 0 + 0 + 2 + 0
+  = 130</div>
+      <div class="result-box"><span class="result-label">Bước 1:</span>S = 1, E = 130, F = 01000000000000000000000</div>
+    `
+  },
+  {
+    title: "Bước 2 — Tính mũ thực k = E − 127",
+    content: `
+      <p>Áp dụng công thức $k = E - \text{bias}$ với bias = 127 (Single):</p>
+      <div class="code-block">k = E − 127
+k = 130 − 127
+k = 3</div>
+      <p><strong>Vì sao dương?</strong> Vì E = 130 &gt; 127, nên k = 3 > 0. Điều này cho biết số cần tìm có độ lớn lớn hơn 1 (cần nhân với $2^3 = 8$).</p>
+      <p><strong>Quan sát:</strong> Nếu E = 127 → k = 0 (số dạng 1.x). Nếu E &lt; 127 → k âm (số &lt; 1). Nếu E &gt; 127 → k dương (số &gt; 1).</p>
+      <div class="result-box"><span class="result-label">Bước 2:</span>k = 3</div>
+    `
+  },
+  {
+    title: "Bước 3 — Tính significand 1.F",
+    content: `
+      <p>F = 01000000000000000000000. Thêm bit 1 đầu (ngầm hiểu):</p>
+      <div class="code-block">1.F = 1.01000000000000000000000₂
+       = 1.01₂  (bỏ các số 0 phía sau cho gọn)</div>
+      <p>Tính giá trị thập phân của 1.01₂:</p>
+      <div class="code-block">1.01₂ = 1 + 0·2^(−1) + 1·2^(−2)
+      = 1 + 0 + 0.25
+      = 1.25</div>
+      <p><strong>Cách tính nhanh:</strong> Chỉ có bit thứ 2 (sau dấu chấm) là 1 → cộng thêm $2^{-2} = 0.25$. Các bit khác = 0 → không cộng gì.</p>
+      <div class="result-box"><span class="result-label">Bước 3:</span>1.F = 1.01₂ = 1.25</div>
+    `
+  },
+  {
+    title: "Bước 4 — Áp công thức X = (−1)^S × 2^k × 1.F",
+    content: `
+      <p>Áp dụng công thức $X = (-1)^S \times 2^k \times (1.F)$:</p>
+      <div class="code-block">X = (−1)^1 × 2^3 × 1.25
+X = (−1) × 8 × 1.25
+X = −10</div>
+      <p><strong>Kiểm tra:</strong> S = 1 → số âm ✓. k = 3 → $|X| \approx 8$ → 8 × 1.25 = 10 → $|X| = 10$ ✓.</p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>1 10000010 01000000000000000000000 = <strong>−10.0</strong></div>
+      <p><strong>Bài học:</strong> Khi thấy E &gt; 127, lập tức biết số có độ lớn &gt; 1. Khi thấy bit dấu S = 1, lập tức biết số âm. Nhẩm được 2 điều này trước khi tính sẽ giúp kiểm tra kết quả cuối.</p>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<h3>📝 Đề bài 2 — Double Precision</h3>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Đề</div>
+  <p>Biểu diễn số thực <strong>X = 5.5</strong> theo chuẩn IEEE 754 Double Precision (64 bit). Trình bày chi tiết.</p>
+</div>
+
+<div id="step-demo-double"></div>
+
+<script>
+const stepsDouble = [
+  {
+    title: "Bước 1 — Đổi 5.5 sang nhị phân",
+    content: `
+      <p>Tách 5.5 thành phần nguyên và phần lẻ, đổi riêng rồi ghép.</p>
+      <p><strong>Phần nguyên 5:</strong></p>
+      <div class="code-block">5 : 2 = 2 dư 1
+2 : 2 = 1 dư 0
+1 : 2 = 0 dư 1
+→ 5₁₀ = 101₂</div>
+      <p><strong>Phần lẻ 0.5 (nhân 2 lấy phần nguyên):</strong></p>
+      <div class="code-block">0.5 × 2 = 1.0 → lấy 1, còn 0 → DỪNG
+→ 0.5₁₀ = 0.1₂</div>
+      <p><strong>Ghép:</strong></p>
+      <div class="result-box"><span class="result-label">Bước 1:</span>5.5₁₀ = 101.1₂</div>
+    `
+  },
+  {
+    title: "Bước 2 — Chuẩn hóa về 1.F × 2^k",
+    content: `
+      <p>5.5 = 101.1₂. Vì |X| = 5.5 ≥ 1, dịch dấu chấm sang <strong>TRÁI</strong> để đưa bit 1 đầu lên trước dấu chấm:</p>
+      <div class="code-block">101.1₂  ← ban đầu
+ │
+ └─ dịch dấu chấm sang TRÁI 1 vị trí → 10.11₂  (bit đầu là 1, chưa phải đầu)
+ │
+ └─ dịch tiếp sang TRÁI 1 vị trí nữa → 1.011₂  (bit đầu là 1 — ĐÚNG!)
+
+Tổng cộng: dịch 2 vị trí sang TRÁI → k = +2</div>
+      <p><strong>Vì sao mũ dương?</strong> Mỗi lần dịch dấu chấm sang trái = chia 2. Để giữ nguyên giá trị, phải nhân với $2^{+1}$ mỗi lần. Dịch 2 lần → nhân với $2^{+2}$.</p>
+      <p>$$5.5 = 101.1_2 = 1.011_2 \times 2^2$$</p>
+      <p><strong>Kiểm tra:</strong> $1.011_2 \times 2^2 = 1.375 \times 4 = 5.5$ ✓</p>
+      <div class="result-box"><span class="result-label">Bước 2:</span>5.5 = 1.011₂ × 2^2, k = 2</div>
+    `
+  },
+  {
+    title: "Bước 3 — Tính E = k + 1023 (bias của Double)",
+    content: `
+      <p>Vì đây là Double Precision, bias = 1023 (không phải 127!).</p>
+      <div class="code-block">E = k + 1023
+E = 2 + 1023
+E = 1025</div>
+      <p>Đổi 1025 sang nhị phân 11 bit (chia 2 lấy dư, đọc ngược):</p>
+      <div class="code-block">1025 : 2 = 512 dư 1
+ 512 : 2 = 256 dư 0
+ 256 : 2 = 128 dư 0
+ 128 : 2 =  64 dư 0
+  64 : 2 =  32 dư 0
+  32 : 2 =  16 dư 0
+  16 : 2 =   8 dư 0
+   8 : 2 =   4 dư 0
+   4 : 2 =   2 dư 0
+   2 : 2 =   1 dư 0
+   1 : 2 =   0 dư 1
+→ 1025 = 10000000001₂  (11 bit)</div>
+      <p><strong>Cách nhớ nhanh:</strong> 1023 = 01111111111₂ (10 bit 1 ở giữa). 1025 = 1023 + 2 → 10000000001₂. Đếm: 1 + 9 số 0 + 1 = 11 bit ✓.</p>
+      <div class="result-box"><span class="result-label">Bước 3:</span>E = 1025 = 10000000001₂ (11 bit)</div>
+    `
+  },
+  {
+    title: "Bước 4 — Tạo F (52 bit)",
+    content: `
+      <p>Significand = 1.011₂. Bỏ bit 1 đầu (ngầm hiểu), phần còn lại là <code>011</code>. Pad 49 số 0 phía sau cho đủ 52 bit:</p>
+      <div class="code-block">significand = 1.011
+                ↑ bỏ bit này
+F = "011" + 49 số 0 = 0110000000000000000000000000000000000000000000000000
+
+(Đếm: 3 bit có sẵn + 49 bit pad = 52 bit ✓)</div>
+      <p><strong>Vì sao Double cần 52 bit F?</strong> Để đạt độ chính xác 15-16 chữ số thập phân. Single chỉ 23 bit → 7-8 chữ số, không đủ cho tính toán khoa học/tài chính.</p>
+      <div class="result-box"><span class="result-label">Bước 4:</span>F = 0110000...0000 (52 bit, 3 bit đầu + 49 số 0)</div>
+    `
+  },
+  {
+    title: "Bước 5 — Ghép S | E | F (1 + 11 + 52 = 64 bit)",
+    content: `
+      <p>5.5 &gt; 0 nên S = 0. Ghép 3 trường:</p>
+      <div class="code-block">S  E           F
+0 | 10000000001 | 0110000000000000000000000000000000000000000000000000
+
+Tổng: 1 + 11 + 52 = 64 bit ✓</div>
+      <p>Đổi sang hexa (gom 4 bit, 64 bit = 16 nhóm 4 = 16 chữ số hex):</p>
+      <div class="code-block">0 10000000001 01100000...0000
+
+Thêm số 0 phía trước cho đủ 64 bit (= 16 nhóm 4):
+0100 0000 0001 0110 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
+  4    0    1    6    0    0    0    0    0    0    0    0    0    0    0    0
+
+→ 0x4016000000000000</div>
+      <div class="result-box"><span class="result-label">Kết quả:</span>5.5₁₀ = 0 | 10000000001 | 0110000...0000 = <strong>0x4016000000000000</strong></div>
+    `
+  },
+  {
+    title: "Bước 6 — Kiểm tra bằng cách đảo ngược",
+    content: `
+      <p>Áp công thức $X = (-1)^S \times 2^{E-1023} \times (1.F)$:</p>
+      <div class="code-block">S = 0 → (−1)^0 = +1
+E = 1025 → k = 1025 − 1023 = 2
+F = 0110000...0000 → 1.F = 1.011₂ = 1 + 0.25 + 0.125 = 1.375
+
+X = (+1) × 2^2 × 1.375
+X = 1 × 4 × 1.375
+X = 5.5 ✓</div>
+      <p>Khớp với đề bài (5.5) → ĐÚNG!</p>
+      <div class="result-box"><span class="result-label">Kết luận:</span>5.5₁₀ = 0x4016000000000000 (Double Precision) ✓</div>
+      <p><strong>Bài học:</strong> Quy trình Double <em>giống hệt</em> Single, chỉ khác bias (1023 thay vì 127) và số bit (64 thay vì 32). Nắm vững Single là nắm 90% Double.</p>
+    `
+  }
+];
+new StepReveal('step-demo-double', stepsDouble);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🔄 Máy đảo ngược IEEE 754 (Single &amp; Double)</div>
+
+  <div class="tabs" data-tabs="ieee-dao">
+    <button class="tab active">32-bit nhị phân → Số</button>
+    <button class="tab">Hex 32-bit → Số</button>
+    <button class="tab">Double: Số → 64-bit</button>
+  </div>
+
+  <!-- Tab 1: 32-bit binary -> decimal -->
+  <div class="tab-content active">
+    <p>Nhập 32 bit (chỉ 0 và 1, có thể cách nhau bằng khoảng trắng):</p>
+    <input type="text" id="bin-input" value="1 10000010 01000000000000000000000" style="font-size: 1.05rem; padding: 10px; font-family: var(--font-mono); width: 100%; max-width: 500px;">
+    <button class="btn mt-1" onclick="convertBin32()">Tách &amp; tính!</button>
+    <div id="bin-steps" class="mt-2"></div>
+    <div id="bin-result"></div>
+  </div>
+
+  <!-- Tab 2: Hex 32-bit -> decimal -->
+  <div class="tab-content">
+    <p>Nhập hexa 32-bit (8 chữ số):</p>
+    <input type="text" id="hex-input" value="C1200000" pattern="[0-9A-Fa-f]{8}" maxlength="8" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono); text-transform: uppercase;">
+    <button class="btn mt-1" onclick="convertHex32()">Tách &amp; tính!</button>
+    <div id="hex-steps" class="mt-2"></div>
+    <div id="hex-result"></div>
+  </div>
+
+  <!-- Tab 3: Double -->
+  <div class="tab-content">
+    <p>Nhập số thực (đổi sang Double Precision 64 bit):</p>
+    <input type="text" id="dec-input" value="5.5" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono);">
+    <button class="btn mt-1" onclick="convertToDouble()">Đổi sang Double!</button>
+    <div id="dec-steps" class="mt-2"></div>
+    <div id="dec-result"></div>
+  </div>
+</div>
+
+<script>
+// Reuse helper from Bài 5 (must define here, this is a separate page)
+function numToBinaryStr(n) {
+  if (n === 0) return { sign: 0, intPart: '0', fracPart: '' };
+  const sign = n < 0 ? 1 : 0;
+  const absN = Math.abs(n);
+  const intPart = Math.floor(absN);
+  let fracPart = absN - intPart;
+  let intBin = '';
+  let tmp = intPart;
+  if (tmp === 0) intBin = '0';
+  while (tmp > 0) {
+    intBin = (tmp % 2) + intBin;
+    tmp = Math.floor(tmp / 2);
+  }
+  let fracBin = '';
+  let guard = 0;
+  while (fracPart !== 0 && guard < 60) {
+    const prod = fracPart * 2;
+    const bit = Math.floor(prod);
+    fracBin += bit;
+    fracPart = prod - bit;
+    guard++;
+  }
+  return { sign, intPart: intBin, fracPart: fracBin };
+}
+
+function normalize(intPart, fracPart) {
+  let bits = intPart + fracPart;
+  const firstOne = bits.indexOf('1');
+  if (firstOne === -1) return { sig: '0', k: 0 };
+  const pointPos = intPart.length;
+  const newK = pointPos - (firstOne + 1);
+  const sig = bits.slice(firstOne + 1);
+  return { sig, k: newK };
+}
+
+function convertBin32() {
+  let binStr = document.getElementById('bin-input').value.trim().replace(/\s+/g, '');
+  if (!/^[01]{32}$/.test(binStr)) {
+    document.getElementById('bin-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Cần đúng 32 bit nhị phân (chỉ 0 và 1).</div>';
+    return;
+  }
+  const S = binStr[0];
+  const E = binStr.slice(1, 9);
+  const F = binStr.slice(9, 32);
+  const Edec = parseInt(E, 2);
+  const k = Edec - 127;
+
+  let html = `<p><strong>Bước 1 — Tách 3 trường (Single 1-8-23):</strong></p>`;
+  html += `<div class="bit-row">`;
+  html += `<div class="bit ${S==='1'?'one':'zero'}" style="background:${S==='1'?'var(--accent)':'white'}; color:${S==='1'?'white':'#404040'};" title="S (dấu)">${S}</div>`;
+  E.split('').forEach(b => {
+    html += `<div class="bit ${b==='1'?'one':'zero'}" style="background:${b==='1'?'#bf8f00':'white'}; color:${b==='1'?'white':'#404040'};" title="E (mũ)">${b}</div>`;
+  });
+  F.split('').forEach(b => {
+    html += `<div class="bit ${b==='1'?'one':'zero'}" title="F (lẻ)">${b}</div>`;
+  });
+  html += `</div>`;
+  html += `<div style="display:flex; gap:4px; justify-content:center; font-size:0.78rem; color:var(--gray-500);">`;
+  html += `<div style="width:36px; text-align:center;"><strong>S</strong></div>`;
+  for (let i = 0; i < 8; i++) html += `<div style="width:36px; text-align:center;">E</div>`;
+  for (let i = 0; i < 23; i++) html += `<div style="width:36px; text-align:center;">F</div>`;
+  html += `</div>`;
+  html += `<div class="code-block">S = ${S}
+E = ${E} = ${Edec}₁₀
+F = ${F}</div>`;
+
+  html += `<p><strong>Bước 2 — Tính mũ thực k = E − 127 = ${Edec} − 127 = ${k}</strong></p>`;
+
+  // significand
+  let frac = 0;
+  for (let i = 0; i < F.length; i++) {
+    if (F[i] === '1') frac += Math.pow(2, -(i + 1));
+  }
+  const sig = 1 + frac;
+  html += `<p><strong>Bước 3 — Tính significand 1.F:</strong></p>`;
+  html += `<div class="code-block">1.${F}₂ = 1 + ${frac.toFixed(10).replace(/0+$/,'').replace(/\.$/,'')} = ${sig}</div>`;
+
+  const sign = (S === '1') ? -1 : 1;
+  const value = sign * Math.pow(2, k) * sig;
+  html += `<p><strong>Bước 4 — Áp công thức X = (−1)^S × 2^k × 1.F:</strong></p>`;
+  html += `<div class="code-block">X = (−1)^${S} × 2^${k} × ${sig.toFixed(6).replace(/0+$/,'').replace(/\.$/,'')}
+X = ${sign} × ${Math.pow(2, k)} × ${sig.toFixed(6).replace(/0+$/,'').replace(/\.$/,'')}
+X = ${value}</div>`;
+
+  document.getElementById('bin-steps').innerHTML = html;
+  document.getElementById('bin-result').innerHTML = `<div class="result-box"><span class="result-label">Kết quả:</span>${binStr} = <strong>${value}</strong></div>`;
+}
+
+function convertHex32() {
+  const hexStr = document.getElementById('hex-input').value.trim().toUpperCase();
+  if (!/^[0-9A-F]{8}$/.test(hexStr)) {
+    document.getElementById('hex-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Cần đúng 8 chữ số hexa.</div>';
+    return;
+  }
+  let bin32 = '';
+  for (const ch of hexStr) {
+    bin32 += parseInt(ch, 16).toString(2).padStart(4, '0');
+  }
+  const S = bin32[0];
+  const E = bin32.slice(1, 9);
+  const F = bin32.slice(9, 32);
+  const Edec = parseInt(E, 2);
+  const k = Edec - 127;
+
+  let html = `<p><strong>Bước 1 — Hex → 32 bit:</strong></p>`;
+  html += `<div class="code-block">0x${hexStr} = ${bin32}</div>`;
+  html += `<p>Tách Single 1-8-23: S = ${S}, E = ${E} = ${Edec}, F = ${F}</p>`;
+  html += `<p><strong>Bước 2 — k = E − 127 = ${Edec} − 127 = ${k}</strong></p>`;
+
+  let frac = 0;
+  for (let i = 0; i < F.length; i++) {
+    if (F[i] === '1') frac += Math.pow(2, -(i + 1));
+  }
+  const sig = 1 + frac;
+  html += `<p><strong>Bước 3 — 1.F = 1.${F}₂ = ${sig}</strong></p>`;
+
+  const sign = (S === '1') ? -1 : 1;
+  const value = sign * Math.pow(2, k) * sig;
+  html += `<p><strong>Bước 4 — X = (−1)^${S} × 2^${k} × ${sig.toFixed(6).replace(/0+$/,'').replace(/\.$/,'')} = <strong>${value}</strong></strong></p>`;
+
+  document.getElementById('hex-steps').innerHTML = html;
+  document.getElementById('hex-result').innerHTML = `<div class="result-box"><span class="result-label">Kết quả:</span>0x${hexStr} = <strong>${value}</strong></div>`;
+}
+
+function convertToDouble() {
+  const input = document.getElementById('dec-input').value.trim();
+  const n = parseFloat(input);
+  if (isNaN(n) || n === 0) {
+    document.getElementById('dec-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Nhập số thực khác 0.</div>';
+    return;
+  }
+  const { sign, intPart, fracPart } = numToBinaryStr(n);
+  const { sig, k } = normalize(intPart, fracPart);
+  const E = k + 1023;
+  const Ebin = E.toString(2).padStart(11, '0');
+  const F = (sig + '0'.repeat(52)).slice(0, 52);
+  const full64 = sign + Ebin + F;
+
+  let html = `<p><strong>Bước 1 — S = ${sign}, |X| = ${Math.abs(n)} = ${intPart}${fracPart ? '.' + fracPart : ''}₂</strong></p>`;
+  html += `<p><strong>Bước 2 — Chuẩn hóa: 1.${sig}₂ × 2^${k}</strong></p>`;
+  html += `<p><strong>Bước 3 — Double bias = 1023 → E = ${k} + 1023 = ${E} = ${Ebin}₂ (11 bit)</strong></p>`;
+  html += `<p><strong>Bước 4 — F (52 bit) = ${F}</strong></p>`;
+
+  // Hex
+  let hexStr = '';
+  for (let i = 0; i < 64; i += 4) {
+    hexStr += parseInt(full64.slice(i, i + 4), 2).toString(16).toUpperCase();
+  }
+  html += `<p><strong>Bước 5 — Ghép S | E | F = ${sign} | ${Ebin} | ${F}</strong></p>`;
+  html += `<div class="code-block">Hex: ${hexStr.match(/.{1,4}/g).join(' ')} = 0x${hexStr}</div>`;
+  document.getElementById('dec-steps').innerHTML = html;
+  document.getElementById('dec-result').innerHTML = `<div class="result-box"><span class="result-label">Kết quả:</span>${n}₁₀ = <strong>0x${hexStr}</strong> (Double 64 bit)</div>`;
+}
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Đảo ngược Single: <strong>0 10000001 10000000000000000000000</strong>. Tìm X.",
+    answer: `B1: S = 0, E = 10000001₂ = 129, F = 1000...0<br>
+    B2: k = 129 − 127 = 2<br>
+    B3: 1.F = 1.1₂ = 1.5<br>
+    B4: X = (−1)^0 × 2^2 × 1.5 = 1 × 4 × 1.5 = <strong>6.0</strong><br>
+    <br>
+    <em>Kiểm tra ngược: 6.0 = 110₂ = 1.1₂ × 2^2, E = 2 + 127 = 129 = 10000001₂ ✓</em>`
+  },
+  {
+    question: "Đảo ngược Single: <strong>0xBF400000</strong>. Tìm X.",
+    answer: `B1: 0xBF400000 = 1011 1111 0100 0000 0000 0000 0000 0000<br>
+    S = 1, E = 01111110 = 126, F = 1000...0<br>
+    <br>
+    B2: k = 126 − 127 = −1 (mũ âm vì E &lt; 127)<br>
+    B3: 1.F = 1.1₂ = 1.5<br>
+    B4: X = (−1)^1 × 2^(−1) × 1.5 = −1 × 0.5 × 1.5 = <strong>−0.75</strong><br>
+    <br>
+    <em>Số có cả bit dấu S=1 (âm) và mũ k=−1 (âm). Lưu ý: hai loại "âm" này độc lập.</em>`
+  },
+  {
+    question: "Biểu diễn <strong>X = −12.625</strong> theo IEEE 754 Single Precision. (Đề thi phổ biến)",
+    answer: `B1: S = 1, |X| = 12.625<br>
+    B2: 12 = 1100₂; 0.625 = 0.101₂ → 12.625 = 1100.101₂<br>
+    B3: Dịch dấu chấm sang TRÁI 3 vị trí → 1.100101₂ × 2^3, k = 3<br>
+    B4: E = 3 + 127 = 130 = 10000010₂<br>
+    B5: F = 10010100000000000000000 (bỏ bit 1 đầu, pad 17 số 0)<br>
+    B6: 1 | 10000010 | 10010100000000000000000<br>
+    <br>
+    Hex: 1011 1111 0100 1010 0000 0000 0000 0000 = <strong>0xBF4A0000</strong><br>
+    <br>
+    Kiểm tra: X = (−1)^1 × 2^(130−127) × 1.100101₂<br>
+            = −1 × 8 × (1 + 0.5 + 0.0625 + 0.015625)<br>
+            = −1 × 8 × 1.578125 = −12.625 ✓`
+  },
+  {
+    question: "Biểu diễn <strong>X = 1.0</strong> theo Double Precision. (Số đẹp, dễ tính)",
+    answer: `B1: S = 0, |X| = 1.0 = 1.0₂<br>
+    B2: Đã chuẩn → 1.0₂ × 2^0, k = 0 (không cần dịch dấu chấm)<br>
+    B3: E = 0 + 1023 = 1023 = 01111111111₂ (11 bit)<br>
+    B4: F = 0000...0000 (52 số 0, vì phần sau dấu chấm không có gì)<br>
+    B5: 0 | 01111111111 | 0000...0000 (52 số 0)<br>
+    <br>
+    Hex: 0011 1111 1111 0000 0000...0000 = <strong>0x3FF0000000000000</strong><br>
+    <br>
+    <em>Khi gặp đề Double với X = 1.0, kết quả E = 01111111111 (10 bit 1 ở giữa). Đây là "mẫu" dễ nhận biết: bất kỳ số nào có E = 01111111111 đều có mũ thực k = 0, tức là dạng 1.x.</em>`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem; line-height: 1.7;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "Cấu trúc 3 trường của IEEE 754 Single Precision theo thứ tự là?",
+    options: ["E (8) | S (1) | F (23)", "S (1) | E (8) | F (23)", "F (23) | E (8) | S (1)", "S (1) | F (23) | E (8)"],
+    correct: 1,
+    explanation: "Single: S (1 bit) + E (8 bit) + F (23 bit) = 32 bit. Thứ tự luôn là S → E → F."
+  },
+  {
+    question: "Để tính mũ thực k từ E trong Single Precision, ta dùng công thức nào?",
+    options: ["k = E", "k = E − 127", "k = E − 1023", "k = E + 127"],
+    correct: 1,
+    explanation: "Single: bias = 127, nên k = E − 127. Double: bias = 1023, nên k = E − 1023."
+  },
+  {
+    question: "Khi đảo ngược Single, F = 01000000000000000000000, giá trị của 1.F là?",
+    options: ["0.25", "1.25", "1.5", "1.75"],
+    correct: 1,
+    explanation: "1.F = 1.01₂ = 1 + 0·0.5 + 1·0.25 = 1.25. Phải nhớ thêm bit 1 đầu (ngầm hiểu)."
+  },
+  {
+    question: "Double Precision có bao nhiêu bit cho trường mũ E và bias là bao nhiêu?",
+    options: ["8 bit, bias = 127", "11 bit, bias = 1023", "11 bit, bias = 127", "16 bit, bias = 32767"],
+    correct: 1,
+    explanation: "Double: S(1) + E(11) + F(52) = 64 bit. Bias = 2^(11-1) − 1 = 1023."
+  },
+  {
+    question: "Cho Single: 1 01111110 01000000000000000000000. Tìm X.",
+    options: ["−0.625", "−0.375", "−0.75", "−1.25"],
+    correct: 0,
+    explanation: "S=1, E=01111110=126, k=126−127=−1, 1.F=1.01₂=1.25. X=(−1)×2^(−1)×1.25 = −1×0.5×1.25 = −0.625."
+  },
+  {
+    question: "Tại sao Double Precision chính xác hơn Single?",
+    options: ["Vì Double dùng bit dấu khác", "Vì Double có 52 bit phần lẻ (so với 23 của Single) → lưu được nhiều chữ số hơn", "Vì Double có bias lớn hơn", "Vì Double không có bit dấu"],
+    correct: 1,
+    explanation: "Double có 52 bit F (so với 23 của Single) → 2^29 ≈ 5×10^8 lần nhiều giá trị hơn → 15-16 chữ số thập phân (so với 7-8 của Single)."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn — Đảo ngược Single</div>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Cho số nhị phân 32 bit: 1 10000010 01000000000000000000000. Tìm số thập phân X theo chuẩn IEEE 754 Single.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải: Đảo ngược IEEE 754 Single</strong>
+
+<strong>Bước 1 — Tách 3 trường (Single 1-8-23):</strong>
+S = 1
+E = 10000010₂ = 1·2^7 + 1·2^1 = 128 + 2 = 130
+F = 01000000000000000000000
+
+<strong>Bước 2 — Tính mũ thực:</strong>
+k = E − 127 = 130 − 127 = 3
+
+<strong>Bước 3 — Tính significand 1.F:</strong>
+1.F = 1.0100...0₂ = 1.01₂
+    = 1 + 1·2^(−2) = 1 + 0.25 = 1.25
+
+<strong>Bước 4 — Áp công thức:</strong>
+X = (−1)^S × 2^k × (1.F)
+X = (−1)^1 × 2^3 × 1.25
+X = −1 × 8 × 1.25
+X = −10
+
+<strong>Kết luận: 1 10000010 01000000000000000000000 = −10.0</strong></pre>
+</div>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn — Double Precision</div>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Biểu diễn 5.5 theo chuẩn IEEE 754 Double Precision.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải: Biểu diễn 5.5 theo Double Precision</strong>
+
+<strong>Bước 1 — Đổi sang nhị phân:</strong>
+5 = 101₂
+0.5 = 0.1₂
+→ 5.5 = 101.1₂
+
+<strong>Bước 2 — Chuẩn hóa (dịch TRÁI 2 vị trí):</strong>
+101.1₂ = 1.011₂ × 2^2, k = 2
+
+<strong>Bước 3 — Tính E (Double bias = 1023):</strong>
+E = k + 1023 = 2 + 1023 = 1025
+E = 10000000001₂ (11 bit)
+
+<strong>Bước 4 — Tạo F (52 bit):</strong>
+F = 011 + 49 số 0 = 0110000...0000 (52 bit)
+
+<strong>Bước 5 — Ghép S | E | F (1+11+52 = 64 bit):</strong>
+0 | 10000000001 | 0110000...0000
+= 0x4016000000000000
+
+<strong>Bước 6 — Kiểm tra:</strong>
+X = (−1)^0 × 2^(1025−1023) × 1.011₂
+  = 1 × 4 × 1.375
+  = 5.5 ✓
+
+<strong>Kết luận: 5.5₁₀ = 0x4016000000000000 (Double)</strong></pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Đầu tiên xác định Single hay Double</strong> — đề thường ghi rõ, nhưng đôi khi chỉ cho số bit (32 → Single, 64 → Double). Bias thay đổi theo: 127 hoặc 1023.</li>
+    <li><strong>Khi đảo ngược, đầu tiên tính nhẩm k = E − bias</strong> để biết số có độ lớn &lt;1, =1, hay &gt;1. Nhẩm được điều này giúp kiểm tra kết quả cuối.</li>
+    <li><strong>Tính 1.F bằng cách cộng từng bit có giá trị 1</strong> với $2^{-1}, 2^{-2}, 2^{-3}...$. Đừng quên bit 1 đầu (ngầm hiểu) — nếu quên, kết quả sẽ thiếu 1 đơn vị.</li>
+    <li><strong>Khi Double, ghép hexa sẽ dài 16 chữ số</strong> (64 bit / 4). Kiểm tra: số chữ số hex phải là 8 (Single) hoặc 16 (Double).</li>
+    <li><strong>Luôn có bước "Kiểm tra"</strong> — đổi ngược lại (từ kết quả thập phân, tính lại 32/64 bit xem có khớp không). Đây là điểm cộng lớn.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ <strong>Tách sai cấu trúc</strong>: dùng 8 bit mũ cho Double (sai, phải 11) hoặc 11 bit cho Single (sai, phải 8).</li>
+    <li>❌ <strong>Dùng bias 127 cho Double</strong> → k lệch 896, kết quả sai hàng $2^{896}$ lần.</li>
+    <li>❌ <strong>Quên thêm bit 1 đầu khi tính 1.F</strong> → kết quả thiếu 1.0 → nhỏ hơn thực tế.</li>
+    <li>❌ <strong>Đổi E từ nhị phân sang thập phân sai</strong> (vd 10000010 thành 130, không phải 258). Hãy nhớ: vị trí bit 0 ở LSB, vị trí 7 ở MSB.</li>
+    <li>❌ <strong>Quên bit dấu S = 1 khi đảo ngược</strong>: tính xong phần giá trị tuyệt đối nhưng quên nhân với −1 → ra số dương thay vì âm.</li>
+    <li>❌ <strong>Hex sai nhóm</strong>: với Single phải đủ 8 chữ số hex, với Double phải đủ 16. Đếm lại trước khi nộp bài.</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Đảo ngược = 3 bước:</strong> tách S|E|F → tính k = E − bias → tính 1.F → áp công thức.</li>
+    <li><strong>Single:</strong> S(1) + E(8) + F(23) = 32 bit, bias = 127.</li>
+    <li><strong>Double:</strong> S(1) + E(11) + F(52) = 64 bit, bias = 1023.</li>
+    <li><strong>Công thức:</strong> $X = (-1)^S \times 2^{E-\text{bias}} \times (1.F)_2$.</li>
+    <li><strong>Bias = $2^{n-1} - 1$</strong> với n = số bit mũ.</li>
+    <li><strong>1.F</strong>: thêm "1." phía trước F (bit 1 đầu ngầm hiểu).</li>
+    <li><strong>Double chính xác hơn Single</strong>: 15-16 chữ số thập phân so với 7-8.</li>
+    <li><strong>Quy trình Double giống hệt Single</strong>, chỉ khác bias và số bit.</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Mẹo thi nhanh</div>
+  <p>Khi gặp đề đảo ngược, nhẩm nhanh theo thứ tự:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>S = 1 → số âm</strong>; S = 0 → số dương.</li>
+    <li><strong>E &lt; bias → k âm → |X| &lt; 1</strong>; E = bias → k = 0 → |X| ≈ 1; E &gt; bias → k dương → |X| &gt; 1.</li>
+    <li><strong>F = 000...0 → 1.F = 1.0</strong> (số nguyên chẵn); F = 100...0 → 1.F = 1.5 (số "nửa").</li>
+  </ul>
+  <p>Ví dụ: <code>0 01111111 0000...0</code> → ngay lập tức biết X = +1.0 (vì S=0, E=127 → k=0, 1.F = 1.0).</p>
+  <p>Ví dụ: <code>1 10000000 0000...0</code> → S=1 (âm), E=128 → k=1, 1.F = 1.0 → X = −1 × 2 × 1.0 = <strong>−2.0</strong>.</p>
+</div>
+
+<div class="nav-bottom">
+  <a href="05-ieee754-am.html" class="btn btn-ghost">← Bài 5: IEEE 754 (số âm)</a>
+  <a href="07-parity.html" class="btn">Bài 7: Parity + VRC/LRC →</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

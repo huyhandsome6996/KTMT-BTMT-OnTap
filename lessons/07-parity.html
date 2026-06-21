@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 7: Parity Bit + VRC/LRC - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 7: Parity Bit + VRC/LRC</strong>
+  <span>7/14</span>
+</div>
+
+<h1>Bài 7: Parity Bit + VRC/LRC — Phát hiện lỗi truyền tin</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Khi máy tính truyền dữ liệu qua cáp mạng, sóng radio, hay Wi-Fi, <strong>bit có thể bị đảo</strong> (0→1 hoặc 1→0) do nhiễu. <strong>Parity bit</strong> là kỹ thuật đơn giản nhất để phát hiện lỗi. Kết hợp <strong>VRC + LRC</strong> thành ma trận 2 chiều, có thể <strong>định vị được vị trí bit sai</strong>.
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Kiến thức cốt lõi — Vì sao cần Parity?</div>
+  <p>Khi truyền 1 byte (8 bit), nếu 1 bit bị đảo do nhiễu điện từ, người nhận sẽ đọc sai dữ liệu mà không hay biết. <strong>Parity bit</strong> là 1 bit phụ được thêm vào để <em>kiểm tra xem tổng số bit 1 là chẵn hay lẻ</em>, từ đó phát hiện lỗi.</p>
+  <p>Có 2 nhóm kỹ thuật kiểm tra lỗi:</p>
+  <table>
+    <tr><th>Nhóm</th><th>Tên đầy đủ</th><th>Khả năng</th></tr>
+    <tr><td><strong>EDC</strong></td><td>Error Detection Code (Mã phát hiện lỗi)</td><td>Chỉ biết CÓ lỗi, không biết vị trí</td></tr>
+    <tr><td><strong>ECC</strong></td><td>Error Correction Code (Mã sửa lỗi)</td><td>Biết vị trí lỗi → có thể sửa được</td></tr>
+  </table>
+  <p>Parity bit là <strong>EDC cơ bản</strong>. VRC + LRC kết hợp thì <strong>gần như ECC</strong> (xác định được vị trí lỗi 1 bit).</p>
+</div>
+
+<h3>1. Parity Chẵn và Parity Lẻ</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Hai chế độ parity</div>
+  <p><strong>Parity chẵn (Even Parity):</strong> Thêm 1 bit vào cuối để <strong>tổng số bit 1 (kể cả parity) là CHẴN</strong>.</p>
+  <p><strong>Parity lẻ (Odd Parity):</strong> Thêm 1 bit vào cuối để <strong>tổng số bit 1 (kể cả parity) là LẺ</strong>.</p>
+  <p>Quy tắc chọn parity bit (gọi P):</p>
+  <table>
+    <tr><th>Số bit 1 trong dữ liệu</th><th>Parity chẵn → P = ?</th><th>Parity lẻ → P = ?</th></tr>
+    <tr><td>0 (chẵn)</td><td>0 (vì 0+0=0, vẫn chẵn)</td><td>1 (vì 0+1=1, lẻ)</td></tr>
+    <tr><td>1 (lẻ)</td><td>1 (vì 1+1=2, chẵn)</td><td>0 (vì 1+0=1, lẻ)</td></tr>
+    <tr><td>2 (chẵn)</td><td>0 (vì 2+0=2, chẵn)</td><td>1 (vì 2+1=3, lẻ)</td></tr>
+    <tr><td>3 (lẻ)</td><td>1 (vì 3+1=4, chẵn)</td><td>0 (vì 3+0=3, lẻ)</td></tr>
+    <tr><td>4 (chẵn)</td><td>0</td><td>1</td></tr>
+    <tr><td>5 (lẻ)</td><td>1</td><td>0</td></tr>
+    <tr><td>6 (chẵn)</td><td>0</td><td>1</td></tr>
+    <tr><td>7 (lẻ)</td><td>1</td><td>0</td></tr>
+    <tr><td>8 (chẵn)</td><td>0</td><td>1</td></tr>
+  </table>
+  <p><strong>Quy tắc nhớ nhanh:</strong> Parity chẵn → P = số bit 1 MOD 2 (lẻ thì P=1, chẵn thì P=0). Parity lẻ → P = (số bit 1 + 1) MOD 2 (lẻ thì P=0, chẵn thì P=1).</p>
+</div>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Ví dụ nhanh</div>
+  <p>Truyền byte <code>1001010</code> (7 bit dữ liệu):</p>
+  <ul style="padding-left: 20px;">
+    <li>Số bit 1 = 3 (lẻ).</li>
+    <li><strong>Parity chẵn:</strong> cần tổng chẵn → P = 1 (vì 3 + 1 = 4, chẵn). Gửi: <code>10010101</code>.</li>
+    <li><strong>Parity lẻ:</strong> cần tổng lẻ → P = 0 (vì 3 + 0 = 3, lẻ). Gửi: <code>10010100</code>.</li>
+  </ul>
+</div>
+
+<h3>2. VRC và LRC — Parity 2 chiều</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 VRC và LRC</div>
+  <p>Khi truyền <strong>nhiều byte</strong> cùng lúc (vd một khối 4 byte), ta sắp xếp chúng thành <strong>ma trận</strong> và tính parity theo cả 2 chiều:</p>
+  <table>
+    <tr><th>Kỹ thuật</th><th>Tên đầy đủ</th><th>Chiều tính parity</th><th>Mục đích</th></tr>
+    <tr><td><strong>VRC</strong></td><td>Vertical Redundancy Check (kiểm tra dư thừa dọc)</td><td>Theo <strong>HÀNG</strong> (mỗi byte 1 parity)</td><td>Phát hiện byte nào bị lỗi</td></tr>
+    <tr><td><strong>LRC</strong></td><td>Longitudinal Redundancy Check (kiểm tra dư thừa ngang)</td><td>Theo <strong>CỘT</strong> (mỗi cột bit 1 parity)</td><td>Phát hiện cột nào (vị trí bit) bị lỗi</td></tr>
+  </table>
+  <p><strong>Giao điểm VRC × LRC = vị trí chính xác của bit bị lỗi</strong>. Đây là chỗ "kỳ diệu" của VRC+LRC: từ EDC (chỉ phát hiện) tiến gần đến ECC (sửa lỗi).</p>
+</div>
+
+<h3>3. Quy trình tính VRC + LRC</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 5 bước chuẩn</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Sắp xếp dữ liệu thành ma trận</strong>: mỗi byte là 1 hàng, các byte xếp chồng lên nhau.</li>
+    <li><strong>Tính VRC cho mỗi hàng</strong>: đếm số bit 1 trong hàng, tính parity (chẵn hoặc lẻ tùy quy ước), thêm vào cuối hàng.</li>
+    <li><strong>Tính LRC cho mỗi cột</strong>: đếm số bit 1 trong cột (xuống dưới), tính parity, ghép thành 1 byte LRC ở cuối ma trận.</li>
+    <li><strong>Truyền/gửi ma trận đầy đủ</strong>: dữ liệu + VRC + LRC.</li>
+    <li><strong>Nhận: tính lại VRC và LRC</strong>. Nếu VRC hàng i sai → lỗi ở hàng i. Nếu LRC cột j sai → lỗi ở cột j. Giao điểm = vị trí bit sai.</li>
+  </ol>
+</div>
+
+<h3>4. Ưu/nhược điểm</h3>
+
+<table>
+  <tr><th>Ưu điểm</th><th>Nhược điểm</th></tr>
+  <tr>
+    <td>
+      <ul style="padding-left: 20px;">
+        <li>Đơn giản, dễ tính, dễ cài đặt phần cứng.</li>
+        <li>Phát hiện được lỗi <strong>1 bit</strong> với độ tin cậy cao.</li>
+        <li>VRC + LRC → <strong>định vị được</strong> bit sai (gần như sửa được).</li>
+        <li>Ít tốn băng thông (chỉ thêm 1-2 byte parity).</li>
+      </ul>
+    </td>
+    <td>
+      <ul style="padding-left: 20px;">
+        <li><strong>Không phát hiện được lỗi 2 bit cùng đảo</strong> (parity vẫn khớp!).</li>
+        <li>Không phát hiện được lỗi chẵn số bit.</li>
+        <li>VRC đơn lẻ <strong>không biết vị trí</strong> bit sai.</li>
+        <li>LRC vẫn sai nếu 2 bit ở 2 hàng/cột khác nhau cùng đảo.</li>
+        <li>Tỷ lệ phát hiện lỗi chỉ khoảng 50% cho nhiều bit.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1 — Nhầm chiều VRC vs LRC</div>
+  <p>Sinh viên hay nhầm "VRC = Vertical = dọc = cột". <strong>SAI!</strong> "Vertical" ở đây chỉ <strong>hướng xếp chồng</strong> của các byte (mỗi byte là 1 hàng xếp chồng dọc). Khi tính parity cho <strong>mỗi byte</strong> (mỗi hàng), ta gọi là VRC.</p>
+  <p><strong>Cách nhớ đúng:</strong></p>
+  <ul style="padding-left: 20px;">
+    <li><strong>VRC</strong> = tính parity theo <strong>HÀNG</strong> (mỗi byte 1 parity, đặt bên phải ma trận).</li>
+    <li><strong>LRC</strong> = tính parity theo <strong>CỘT</strong> (mỗi vị trí bit 1 parity, đặt bên dưới ma trận).</li>
+  </ul>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #2 — Quên tính parity cho LRC</div>
+  <p>LRC là <strong>1 byte</strong> gồm 8 bit parity (mỗi bit ứng với 1 cột). Nhưng cũng có thể thêm 1 parity cho chính LRC đó (parity của parity) ở góc dưới phải. Tùy đề, hãy đọc kỹ yêu cầu.</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #3 — Nhầm parity chẵn/lẻ</div>
+  <p>Đề ghi "parity chẵn" ≠ "thêm bit 1". Phải xem số bit 1 hiện có là chẵn hay lẻ rồi mới quyết định P.</p>
+  <p><strong>Nhớ:</strong> Parity chẵn → P = (số bit 1) mod 2 (lẻ→1, chẵn→0). Parity lẻ → ngược lại.</p>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Đề bài</div>
+  <p>Cho khối dữ liệu 4 byte (sử dụng parity chẵn): <strong>0x47, 0x9B, 0xC2, 0x3D</strong>. Hãy:</p>
+  <ul style="padding-left: 20px;">
+    <li>a) Tính VRC cho mỗi byte.</li>
+    <li>b) Tính LRC cho ma trận (parity theo cột).</li>
+    <li>c) Mô phỏng kịch bản lỗi: byte 2 (0x9B), bit ở vị trí b4 bị đảo. Chứng minh VRC + LRC phát hiện và định vị được lỗi.</li>
+  </ul>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+const steps = [
+  {
+    title: "Bước 1 — Đổi 4 byte sang nhị phân và xếp ma trận",
+    content: `
+      <p>Đổi từng byte từ hex sang 8 bit nhị phân (gom từng cặp hex thành 8 bit):</p>
+      <div class="code-block">0x47 = 0100 0111
+0x9B = 1001 1011
+0xC2 = 1100 0010
+0x3D = 0011 1101</div>
+      <p>Sắp xếp thành ma trận 4 hàng × 8 cột (mỗi hàng = 1 byte, mỗi cột = 1 vị trí bit b7..b0):</p>
+      <div class="code-block">        b7 b6 b5 b4 b3 b2 b1 b0
+Byte 1:  0  1  0  0  0  1  1  1   (0x47)
+Byte 2:  1  0  0  1  1  0  1  1   (0x9B)
+Byte 3:  1  1  0  0  0  0  1  0   (0xC2)
+Byte 4:  0  0  1  1  1  1  0  1   (0x3D)</div>
+      <p><strong>Vì sao xếp ma trận?</strong> Để tính parity theo 2 chiều: HÀNG (VRC) cho mỗi byte, CỘT (LRC) cho mỗi vị trí bit. Ma trận giúp "nhìn" trực quan cả 2 chiều.</p>
+    `
+  },
+  {
+    title: "Bước 2 — Tính VRC (parity theo HÀNG, chẵn)",
+    content: `
+      <p>Cho mỗi hàng (byte), đếm số bit 1, tính parity chẵn:</p>
+      <div class="code-block">Byte 1 (0x47 = 01000111): số bit 1 = 4 (chẵn) → VRC = 0 (vì 4+0=4, vẫn chẵn)
+Byte 2 (0x9B = 10011011): số bit 1 = 6 (chẵn) → VRC = 0 (vì 6+0=6, vẫn chẵn)
+Byte 3 (0xC2 = 11000010): số bit 1 = 3 (lẻ)   → VRC = 1 (vì 3+1=4, chẵn)
+Byte 4 (0x3D = 00111101): số bit 1 = 5 (lẻ)   → VRC = 1 (vì 5+1=6, chẵn)</div>
+      <p>Thêm cột VRC bên phải ma trận:</p>
+      <div class="code-block">        b7 b6 b5 b4 b3 b2 b1 b0 | VRC
+Byte 1:  0  1  0  0  0  1  1  1 |  0
+Byte 2:  1  0  0  1  1  0  1  1 |  0
+Byte 3:  1  1  0  0  0  0  1  0 |  1
+Byte 4:  0  0  1  1  1  1  0  1 |  1</div>
+      <div class="result-box"><span class="result-label">VRC:</span>Byte 1=0, Byte 2=0, Byte 3=1, Byte 4=1</div>
+    `
+  },
+  {
+    title: "Bước 3 — Tính LRC (parity theo CỘT, chẵn)",
+    content: `
+      <p>Cho mỗi cột (vị trí bit), đếm số bit 1 trong 4 hàng, tính parity chẵn:</p>
+      <div class="code-block">Cột b7: 0+1+1+0 = 2 (chẵn) → LRC[b7] = 0
+Cột b6: 1+0+1+0 = 2 (chẵn) → LRC[b6] = 0
+Cột b5: 0+0+0+1 = 1 (lẻ)   → LRC[b5] = 1
+Cột b4: 0+1+0+1 = 2 (chẵn) → LRC[b4] = 0
+Cột b3: 0+1+0+1 = 2 (chẵn) → LRC[b3] = 0
+Cột b2: 1+0+0+1 = 2 (chẵn) → LRC[b2] = 0
+Cột b1: 1+1+1+0 = 3 (lẻ)   → LRC[b1] = 1
+Cột b0: 1+1+0+1 = 3 (lẻ)   → LRC[b0] = 1</div>
+      <p>Ghép thành 1 byte LRC (đặt ở hàng cuối ma trận):</p>
+      <div class="code-block">        b7 b6 b5 b4 b3 b2 b1 b0 | VRC
+Byte 1:  0  1  0  0  0  1  1  1 |  0
+Byte 2:  1  0  0  1  1  0  1  1 |  0
+Byte 3:  1  1  0  0  0  0  1  0 |  1
+Byte 4:  0  0  1  1  1  1  0  1 |  1
+─────────────────────────────────────
+LRC:     0  0  1  0  0  0  1  1 | (parity của LRC = ?)</div>
+      <p><strong>LRC = 00100011₂ = 0x23</strong>. (Nếu đề yêu cầu tính thêm parity cho chính LRC: số bit 1 trong LRC = 3 (lẻ) → parity = 1.)</p>
+      <div class="result-box"><span class="result-label">LRC:</span>00100011₂ = 0x23</div>
+    `
+  },
+  {
+    title: "Bước 4 — Mô phỏng lỗi: byte 2, bit b4 bị đảo",
+    content: `
+      <p>Giả sử trong quá trình truyền, byte 2 (0x9B = 10011011) bị nhiễu ở bit b4: 1 → 0. Byte nhận được là:</p>
+      <div class="code-block">Byte 2 gốc:  1 0 0 1 1 0 1 1  (b4 = 1)
+Byte 2 nhận: 1 0 0 <span style="color:red">0</span> 1 0 1 1  (b4 bị đảo thành 0)
+            = 10001011₂ = 0x8B</div>
+      <p>Ma trận nhận được (chỉ byte 2 thay đổi):</p>
+      <div class="code-block">        b7 b6 b5 b4 b3 b2 b1 b0 | VRC (tính lại)
+Byte 1:  0  1  0  0  0  1  1  1 |  0  (không đổi)
+Byte 2:  1  0  0 <span style="color:red">0</span>  1  0  1  1 | <span style="color:red">1</span>  (số bit 1 giờ là 5, lẻ → VRC=1, khác 0 ban đầu)
+Byte 3:  1  1  0  0  0  0  1  0 |  1  (không đổi)
+Byte 4:  0  0  1  1  1  1  0  1 |  1  (không đổi)</div>
+      <p><strong>Phát hiện lỗi bằng VRC:</strong> Byte 2 có VRC nhận = 1, khác VRC gửi = 0. → <strong>Byte 2 bị lỗi</strong>. ✓</p>
+      <div class="result-box"><span class="result-label">VRC phát hiện:</strong>Hàng 2 sai → lỗi ở Byte 2.</div>
+    `
+  },
+  {
+    title: "Bước 5 — Tính LRC nhận và định vị lỗi",
+    content: `
+      <p>Tính lại LRC từ ma trận nhận được:</p>
+      <div class="code-block">Cột b7: 0+1+1+0 = 2 (chẵn) → LRC mới[b7] = 0  (giống cũ → OK)
+Cột b6: 1+0+1+0 = 2 (chẵn) → LRC mới[b6] = 0  (giống cũ → OK)
+Cột b5: 0+0+0+1 = 1 (lẻ)   → LRC mới[b5] = 1  (giống cũ → OK)
+Cột b4: 0+<span style="color:red">0</span>+0+1 = 1 (lẻ)  → LRC mới[b4] = <span style="color:red">1</span>  (khác cũ 0 → SAI!)
+Cột b3: 0+1+0+1 = 2 (chẵn) → LRC mới[b3] = 0  (giống cũ → OK)
+Cột b2: 1+0+0+1 = 2 (chẵn) → LRC mới[b2] = 0  (giống cũ → OK)
+Cột b1: 1+1+1+0 = 3 (lẻ)   → LRC mới[b1] = 1  (giống cũ → OK)
+Cột b0: 1+1+0+1 = 3 (lẻ)   → LRC mới[b0] = 1  (giống cũ → OK)</div>
+      <p><strong>Phát hiện lỗi bằng LRC:</strong> Cột b4 có LRC mới = 1, khác LRC cũ = 0. → <strong>Cột b4 bị lỗi</strong>. ✓</p>
+      <p><strong>Giao điểm VRC × LRC:</strong> Hàng 2 (Byte 2) × Cột b4 = vị trí chính xác bit bị đảo. → <strong>Bit ở Byte 2 vị trí b4 bị lỗi</strong>. Có thể sửa bằng cách đảo bit đó lại (0 → 1).</p>
+      <div class="result-box"><span class="result-label">Kết luận:</strong>VRC sai hàng 2 + LRC sai cột b4 → bit lỗi ở (Byte 2, b4). Sửa: 0 → 1 → khôi phục 0x9B.</div>
+      <p><strong>Bài học:</strong> VRC cho biết "byte nào" bị lỗi, LRC cho biết "vị trí bit nào" bị lỗi. Giao điểm = tọa độ chính xác. Đây là cơ chế gần như ECC (sửa lỗi) chỉ với parity đơn giản.</p>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🔄 Máy tính Parity + Mô phỏng lỗi VRC/LRC</div>
+
+  <div class="tabs" data-tabs="parity">
+    <button class="tab active">Parity 1 byte</button>
+    <button class="tab">Ma trận VRC + LRC</button>
+    <button class="tab">Mô phỏng lỗi (click bit)</button>
+  </div>
+
+  <!-- Tab 1: Single byte parity -->
+  <div class="tab-content active">
+    <p>Nhập 7 hoặc 8 bit dữ liệu (chỉ 0 và 1):</p>
+    <input type="text" id="byte-input" value="1001010" pattern="[01]+" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono);">
+    <button class="btn mt-1" onclick="calcParity()">Tính parity!</button>
+    <div id="parity-result" class="mt-2"></div>
+  </div>
+
+  <!-- Tab 2: VRC + LRC matrix -->
+  <div class="tab-content">
+    <p>Nhập 4 byte (hexa, dạng 2 chữ số mỗi byte, cách nhau bởi dấu phẩy):</p>
+    <input type="text" id="matrix-input" value="47, 9B, C2, 3D" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono); width: 100%; max-width: 400px;">
+    <label style="margin-left: 12px;">Parity:
+      <select id="parity-type" style="max-width: 120px;">
+        <option value="even">Chẵn (Even)</option>
+        <option value="odd">Lẻ (Odd)</option>
+      </select>
+    </label>
+    <button class="btn mt-1" onclick="calcMatrix()">Tính VRC + LRC!</button>
+    <div id="matrix-result" class="mt-2"></div>
+  </div>
+
+  <!-- Tab 3: Error simulation -->
+  <div class="tab-content">
+    <p>Bảng ma trận 4×8 dưới đây. <strong>Click vào bất kỳ bit nào</strong> để đảo nó (mô phỏng lỗi truyền). VRC và LRC tương ứng sẽ sáng đỏ, và giao điểm chỉ ra vị trí lỗi.</p>
+    <button class="btn btn-ghost mt-1" onclick="resetErrorSim()">↺ Reset (không lỗi)</button>
+    <div id="error-sim" class="mt-2"></div>
+    <div id="error-info"></div>
+  </div>
+</div>
+
+<script>
+function calcParity() {
+  const bits = document.getElementById('byte-input').value.trim();
+  if (!/^[01]+$/.test(bits)) {
+    document.getElementById('parity-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Chỉ nhập 0 và 1.</div>';
+    return;
+  }
+  const count1 = (bits.match(/1/g) || []).length;
+  const parityEven = count1 % 2 === 0 ? '0' : '1';
+  const parityOdd = count1 % 2 === 0 ? '1' : '0';
+
+  let html = `<p><strong>Phân tích byte:</strong> ${bits} có ${count1} bit 1 (${count1 % 2 === 0 ? 'chẵn' : 'lẻ'}).</p>`;
+  html += `<div class="bit-row">`;
+  bits.split('').forEach(b => {
+    html += `<div class="bit ${b==='1'?'one':'zero'}">${b}</div>`;
+  });
+  html += `</div>`;
+  html += `<p><strong>Parity chẵn (Even):</strong> cần tổng chẵn → P = ${parityEven} → gửi: <code>${bits}${parityEven}</code> (tổng = ${count1 + parseInt(parityEven)}, ${((count1 + parseInt(parityEven)) % 2 === 0) ? 'chẵn ✓' : 'lẻ ✗'}).</p>`;
+  html += `<p><strong>Parity lẻ (Odd):</strong> cần tổng lẻ → P = ${parityOdd} → gửi: <code>${bits}${parityOdd}</code> (tổng = ${count1 + parseInt(parityOdd)}, ${((count1 + parseInt(parityOdd)) % 2 === 1) ? 'lẻ ✓' : 'chẵn ✗'}).</p>`;
+  document.getElementById('parity-result').innerHTML = html + `<div class="result-box"><span class="result-label">Tóm tắt:</span>Byte ${bits} (${count1} bit 1) → P_even=${parityEven}, P_odd=${parityOdd}</div>`;
+}
+
+function calcMatrix() {
+  const input = document.getElementById('matrix-input').value.trim();
+  const bytes = input.split(/[, ]+/).map(s => s.trim().toUpperCase()).filter(s => s);
+  if (bytes.length !== 4 || !bytes.every(b => /^[0-9A-F]{2}$/.test(b))) {
+    document.getElementById('matrix-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Nhập đúng 4 byte, mỗi byte 2 chữ số hex.</div>';
+    return;
+  }
+  const parityType = document.getElementById('parity-type').value;
+  const isEven = parityType === 'even';
+
+  // Convert to bits
+  const matrix = bytes.map(b => {
+    const bin = parseInt(b, 16).toString(2).padStart(8, '0');
+    return bin.split('');
+  });
+
+  // VRC for each row
+  const vrc = matrix.map(row => {
+    const cnt = row.filter(b => b === '1').length;
+    return isEven ? (cnt % 2 === 0 ? '0' : '1') : (cnt % 2 === 0 ? '1' : '0');
+  });
+
+  // LRC for each column
+  const lrc = [];
+  for (let col = 0; col < 8; col++) {
+    let cnt = 0;
+    for (let row = 0; row < 4; row++) if (matrix[row][col] === '1') cnt++;
+    lrc.push(isEven ? (cnt % 2 === 0 ? '0' : '1') : (cnt % 2 === 0 ? '1' : '0'));
+  }
+
+  // Render matrix
+  let html = `<p><strong>Ma trận dữ liệu (parity ${isEven ? 'chẵn' : 'lẻ'}):</strong></p>`;
+  html += `<div class="code-block">        b7 b6 b5 b4 b3 b2 b1 b0 | VRC
+`;
+  for (let r = 0; r < 4; r++) {
+    html += `Byte ${r+1} (${bytes[r]}): ${matrix[r].join('  ')} |  ${vrc[r]}\n`;
+  }
+  html += `─────────────────────────────────────\n`;
+  html += `LRC:                  ${lrc.join('  ')}</div>`;
+  const lrcHex = parseInt(lrc.join(''), 2).toString(16).toUpperCase().padStart(2, '0');
+  html += `<p><strong>VRC (4 bit):</strong> ${vrc.join('')} → hex: 0x${parseInt(vrc.join(''), 2).toString(16).toUpperCase()}</p>`;
+  html += `<p><strong>LRC (8 bit):</strong> ${lrc.join('')} → hex: <strong>0x${lrcHex}</strong></p>`;
+  document.getElementById('matrix-result').innerHTML = html + `<div class="result-box"><span class="result-label">Tóm tắt:</strong>VRC = ${vrc.join('')}, LRC = 0x${lrcHex} (parity ${isEven ? 'chẵn' : 'lẻ'})</div>`;
+}
+
+// === Tab 3: Error simulation ===
+const simBytes = ['47', '9B', 'C2', '3D'];  // Fixed for simulation
+let simMatrix = simBytes.map(b => parseInt(b, 16).toString(2).padStart(8, '0').split(''));
+let simErrorMatrix = simMatrix.map(row => [...row]);  // Copy for error state
+
+function calcSimVRC(matrix) {
+  return matrix.map(row => {
+    const cnt = row.filter(b => b === '1').length;
+    return cnt % 2 === 0 ? '0' : '1';  // Even parity
+  });
+}
+function calcSimLRC(matrix) {
+  const lrc = [];
+  for (let col = 0; col < 8; col++) {
+    let cnt = 0;
+    for (let row = 0; row < 4; row++) if (matrix[row][col] === '1') cnt++;
+    lrc.push(cnt % 2 === 0 ? '0' : '1');
+  }
+  return lrc;
+}
+
+function renderErrorSim() {
+  const origVRC = calcSimVRC(simMatrix);
+  const origLRC = calcSimLRC(simMatrix);
+  const newVRC = calcSimVRC(simErrorMatrix);
+  const newLRC = calcSimLRC(simErrorMatrix);
+
+  let html = `<table style="font-family: var(--font-mono); text-align: center;">`;
+  html += `<tr><th></th><th>b7</th><th>b6</th><th>b5</th><th>b4</th><th>b3</th><th>b2</th><th>b1</th><th>b0</th><th>VRC</th></tr>`;
+  for (let r = 0; r < 4; r++) {
+    html += `<tr><td><strong>Byte ${r+1}</strong><br><small>0x${simBytes[r]}</small></td>`;
+    for (let c = 0; c < 8; c++) {
+      const origBit = simMatrix[r][c];
+      const currBit = simErrorMatrix[r][c];
+      const isError = origBit !== currBit;
+      html += `<td><button class="bit ${currBit==='1'?'one':'zero'}${isError ? ' error' : ''}" onclick="toggleBit(${r}, ${c})" style="cursor:pointer; width:42px; height:42px;">${currBit}</button></td>`;
+    }
+    const vrcDiff = origVRC[r] !== newVRC[r];
+    html += `<td><div class="bit ${newVRC[r]==='1'?'one':'zero'}${vrcDiff ? ' error' : ''}" style="width:42px; height:42px;">${newVRC[r]}</div></td>`;
+    html += `</tr>`;
+  }
+  html += `<tr><td><strong>LRC</strong></td>`;
+  for (let c = 0; c < 8; c++) {
+    const lrcDiff = origLRC[c] !== newLRC[c];
+    html += `<td><div class="bit ${newLRC[c]==='1'?'one':'zero'}${lrcDiff ? ' error' : ''}" style="width:42px; height:42px;">${newLRC[c]}</div></td>`;
+  }
+  html += `<td></td></tr></table>`;
+  document.getElementById('error-sim').innerHTML = html;
+
+  // Find errors
+  const errorRows = [];
+  for (let r = 0; r < 4; r++) if (origVRC[r] !== newVRC[r]) errorRows.push(r + 1);
+  const errorCols = [];
+  for (let c = 0; c < 8; c++) if (origLRC[c] !== newLRC[c]) errorCols.push(8 - c);
+
+  let info = '';
+  if (errorRows.length === 0 && errorCols.length === 0) {
+    info = `<div class="result-box"><span class="result-label">Trạng thái:</span>Không có lỗi. Tất cả VRC và LRC đều khớp với giá trị gốc.</div>`;
+  } else if (errorRows.length === 1 && errorCols.length === 1) {
+    info = `<div class="result-box"><span class="result-label">Phát hiện &amp; định vị lỗi!</span>VRC báo hàng Byte ${errorRows[0]} sai. LRC báo cột b${errorCols[0]} sai. → Lỗi tại (Byte ${errorRows[0]}, b${errorCols[0]}). Có thể sửa bằng cách đảo bit này.</div>`;
+  } else {
+    info = `<div class="result-box error"><span class="result-label">Phát hiện lỗi nhưng không định vị được!</span>VRC sai ở ${errorRows.length} hàng, LRC sai ở ${errorCols.length} cột. Nhiều khả năng có ≥ 2 bit bị đảo ở hàng/cột khác nhau → VRC+LRC không đủ sức định vị.</div>`;
+  }
+  document.getElementById('error-info').innerHTML = info;
+}
+
+function toggleBit(r, c) {
+  simErrorMatrix[r][c] = simErrorMatrix[r][c] === '1' ? '0' : '1';
+  renderErrorSim();
+}
+
+function resetErrorSim() {
+  simErrorMatrix = simMatrix.map(row => [...row]);
+  renderErrorSim();
+}
+
+// Init
+renderErrorSim();
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Truyền byte <strong>1111011</strong> (7 bit) với parity chẵn. Tìm parity bit P và chuỗi bit gửi đi.",
+    answer: `Số bit 1 trong 1111011 = 6 (chẵn).<br>
+    Parity chẵn: cần tổng chẵn → P = 0 (vì 6 + 0 = 6, vẫn chẵn).<br>
+    → Gửi: <strong>11110110</strong> (8 bit, P = 0 ở cuối).<br>
+    <br>
+    <em>Kiểm tra: 6 + 0 = 6 bit 1, chẵn ✓</em>`
+  },
+  {
+    question: "Truyền byte <strong>1010101</strong> (7 bit) với parity lẻ. Tìm P và chuỗi gửi.",
+    answer: `Số bit 1 trong 1010101 = 4 (chẵn).<br>
+    Parity lẻ: cần tổng lẻ → P = 1 (vì 4 + 1 = 5, lẻ).<br>
+    → Gửi: <strong>10101011</strong> (P = 1 ở cuối).<br>
+    <br>
+    <em>Kiểm tra: 4 + 1 = 5 bit 1, lẻ ✓</em>`
+  },
+  {
+    question: "Cho khối 4 byte với parity chẵn: <strong>0x3A, 0x5C, 0x77, 0x1F</strong>. Tính VRC và LRC.",
+    answer: `Đổi sang nhị phân:<br>
+    0x3A = 00111010<br>
+    0x5C = 01011100<br>
+    0x77 = 01110111<br>
+    0x1F = 00011111<br>
+    <br>
+    VRC (parity chẵn cho mỗi hàng):<br>
+    Byte 1 (0x3A): 4 bit 1 (chẵn) → VRC = 0<br>
+    Byte 2 (0x5C): 4 bit 1 (chẵn) → VRC = 0<br>
+    Byte 3 (0x77): 6 bit 1 (chẵn) → VRC = 0<br>
+    Byte 4 (0x1F): 6 bit 1 (chẵn) → VRC = 0<br>
+    → VRC = <strong>0000</strong><br>
+    <br>
+    LRC (parity chẵn cho mỗi cột):<br>
+    b7: 0+0+0+0 = 0 (chẵn) → 0<br>
+    b6: 0+1+1+0 = 2 (chẵn) → 0<br>
+    b5: 1+0+1+0 = 2 (chẵn) → 0<br>
+    b4: 1+1+1+1 = 4 (chẵn) → 0<br>
+    b3: 1+1+0+1 = 3 (lẻ) → 1<br>
+    b2: 0+1+1+1 = 3 (lẻ) → 1<br>
+    b1: 1+0+1+1 = 3 (lẻ) → 1<br>
+    b0: 0+0+1+1 = 2 (chẵn) → 0<br>
+    → LRC = <strong>00001110₂ = 0x0E</strong>`
+  },
+  {
+    question: "Giải thích tại sao parity KHÔNG phát hiện được lỗi khi 2 bit cùng bị đảo trong 1 byte.",
+    answer: `Ví dụ: byte gốc 1001010 (3 bit 1, lẻ), parity chẵn → P = 1, gửi 10010101 (4 bit 1, chẵn).<br>
+    <br>
+    Giả sử 2 bit bị đảo cùng lúc: b0 (0→1) và b3 (1→0).<br>
+    Byte nhận: 10000111 (vẫn 4 bit 1, chẵn).<br>
+    <br>
+    → Parity nhận = 0 (vì 4 bit 1 chẵn) → khớp với parity gửi = 0.<br>
+    → Không phát hiện được lỗi mặc dù 2 bit đã bị đảo!<br>
+    <br>
+    <strong>Nguyên lý:</strong> Parity chỉ "đếm" chẵn/lẻ. Đảo 2 bit (1 bit 0→1 và 1 bit 1→0) làm tổng bit 1 không đổi → parity không phát hiện được.<br>
+    <br>
+    <em>Đó là lý do CRC và Hamming được phát triển: CRC phát hiện được lỗi nhiều bit, Hamming có thể sửa được lỗi 1 bit.</em>`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem; line-height: 1.7;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "Parity chẵn yêu cầu tổng số bit 1 (kể cả parity) là gì?",
+    options: ["Lẻ", "Chẵn", "Bằng 0", "Bằng 8"],
+    correct: 1,
+    explanation: "Parity chẵn (Even): tổng bit 1 là CHẴN. Parity lẻ (Odd): tổng bit 1 là LẺ."
+  },
+  {
+    question: "Byte 1010101 (7 bit) có parity chẵn là bao nhiêu?",
+    options: ["P = 0 (vì có 4 bit 1, chẵn)", "P = 1 (vì phải thêm để được 5)", "P = 0 (luôn 0)", "P = 1 (luôn 1)"],
+    correct: 0,
+    explanation: "Số bit 1 = 4 (chẵn). Parity chẵn cần tổng chẵn → P = 0 (vì 4 + 0 = 4, vẫn chẵn)."
+  },
+  {
+    question: "VRC tính parity theo chiều nào?",
+    options: ["Theo CỘT (mỗi vị trí bit)", "Theo HÀNG (mỗi byte)", "Theo đường chéo", "Theo toàn bộ khối"],
+    correct: 1,
+    explanation: "VRC (Vertical) tính parity cho mỗi HÀNG (mỗi byte). Đặt kết quả bên phải ma trận."
+  },
+  {
+    question: "LRC tính parity theo chiều nào?",
+    options: ["Theo CỘT (mỗi vị trí bit)", "Theo HÀNG (mỗi byte)", "Theo đường chéo", "Theo toàn bộ khối"],
+    correct: 0,
+    explanation: "LRC (Longitudinal) tính parity cho mỗi CỘT (mỗi vị trí bit). Đặt kết quả ở hàng cuối ma trận."
+  },
+  {
+    question: "Khi VRC báo lỗi ở hàng 2 và LRC báo lỗi ở cột b4, điều đó có nghĩa gì?",
+    options: ["Không thể biết vị trí lỗi", "Bit lỗi nằm ở giao điểm (Byte 2, b4) — có thể sửa", "Cả byte 2 bị sai hoàn toàn", "Cả cột b4 bị sai"],
+    correct: 1,
+    explanation: "VRC+LRC tạo thành ma trận 2 chiều. Giao điểm hàng × cột = vị trí chính xác của bit lỗi → có thể sửa bằng cách đảo lại bit đó."
+  },
+  {
+    question: "Parity bit KHÔNG phát hiện được trường hợp lỗi nào sau đây?",
+    options: ["1 bit bị đảo", "2 bit cùng đảo trong 1 byte (một 0→1, một 1→0)", "1 bit 0→1", "1 bit 1→0"],
+    correct: 1,
+    explanation: "Parity đếm số bit 1. Đảo 2 bit (một 0→1 + một 1→0) giữ nguyên tổng → parity không đổi → không phát hiện được. Đây là nhược điểm cơ bản của parity."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn</div>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Cho khối dữ liệu 4 byte (parity chẵn): 0x47, 0x9B, 0xC2, 0x3D. Tính VRC, LRC. Mô phỏng lỗi: byte 2 bit b4 bị đảo, chứng minh VRC+LRC phát hiện và định vị được lỗi.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải: Parity VRC + LRC (parity chẵn)</strong>
+
+<strong>Bước 1 — Đổi 4 byte sang nhị phân, xếp ma trận:</strong>
+0x47 = 01000111
+0x9B = 10011011
+0xC2 = 11000010
+0x3D = 00111101
+
+        b7 b6 b5 b4 b3 b2 b1 b0
+Byte 1:  0  1  0  0  0  1  1  1
+Byte 2:  1  0  0  1  1  0  1  1
+Byte 3:  1  1  0  0  0  0  1  0
+Byte 4:  0  0  1  1  1  1  0  1
+
+<strong>Bước 2 — VRC (parity chẵn cho mỗi hàng):</strong>
+Byte 1: 4 bit 1 (chẵn) → VRC = 0
+Byte 2: 6 bit 1 (chẵn) → VRC = 0
+Byte 3: 3 bit 1 (lẻ)   → VRC = 1
+Byte 4: 5 bit 1 (lẻ)   → VRC = 1
+→ VRC = 0011
+
+<strong>Bước 3 — LRC (parity chẵn cho mỗi cột):</strong>
+b7: 0+1+1+0 = 2 → LRC[b7] = 0
+b6: 1+0+1+0 = 2 → LRC[b6] = 0
+b5: 0+0+0+1 = 1 → LRC[b5] = 1
+b4: 0+1+0+1 = 2 → LRC[b4] = 0
+b3: 0+1+0+1 = 2 → LRC[b3] = 0
+b2: 1+0+0+1 = 2 → LRC[b2] = 0
+b1: 1+1+1+0 = 3 → LRC[b1] = 1
+b0: 1+1+0+1 = 3 → LRC[b0] = 1
+→ LRC = 00100011₂ = 0x23
+
+<strong>Bước 4 — Mô phỏng lỗi (byte 2, b4 bị đảo 1→0):</strong>
+Byte 2 nhận: 1 0 0 <span style="color:red">0</span> 1 0 1 1 = 0x8B
+
+Tính lại VRC hàng 2:
+Byte 2 mới: 5 bit 1 (lẻ) → VRC mới = 1
+Khác VRC cũ (= 0) → <strong>HÀNG 2 BỊ LỖI</strong>
+
+Tính lại LRC cột b4:
+Cột b4 mới: 0+<span style="color:red">0</span>+0+1 = 1 → LRC mới[b4] = 1
+Khác LRC cũ (= 0) → <strong>CỘT b4 BỊ LỖI</strong>
+
+<strong>Bước 5 — Định vị lỗi:</strong>
+Giao điểm: hàng 2 × cột b4 → bit lỗi tại (Byte 2, b4).
+Sửa: 0 → 1 → khôi phục 0x9B ✓
+
+<strong>Kết luận:</strong> VRC+LRC phát hiện và định vị được lỗi 1 bit.</pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn vẽ ma trận có tiêu đề cột (b7..b0) và tiêu đề hàng (Byte 1, 2...)</strong> — giám khảo dễ chấm, dễ thấy cấu trúc.</li>
+    <li><strong>Ghi rõ "parity chẵn" hay "parity lẻ"</strong> ngay đầu bài làm. Đây là quy ước nền tảng — sai một chữ là sai cả bài.</li>
+    <li><strong>Mỗi bước tính VRC/LRC đều ghi công thức đếm</strong>: vd "Byte 1: 4 bit 1 (chẵn) → VRC = 0". Đừng chỉ ghi kết quả "VRC = 0" mà không giải thích.</li>
+    <li><strong>Vẽ LRC thành 1 hàng cuối</strong> và VRC thành 1 cột phải — trực quan, giống "bảng cờ" để thấy giao điểm.</li>
+    <li><strong>Trong phần mô phỏng lỗi, dùng mũi tên hoặc bôi đỏ bit bị đảo</strong> và chỉ ra rõ "VRC hàng X sai" + "LRC cột Y sai" + "Giao điểm = vị trí lỗi". Đây là phần giám khảo cho nhiều điểm nhất.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ <strong>Nhầm chiều VRC/LRC</strong>: tính VRC theo cột, LRC theo hàng. Phải nhớ: VRC = hàng, LRC = cột.</li>
+    <li>❌ <strong>Nhầm parity chẵn/lẻ</strong>: ghi "parity chẵn" nhưng tính P = 1 khi tổng đã chẵn. Phải nhớ: parity chẵn cần tổng chẵn → P = tổng mod 2.</li>
+    <li>❌ <strong>Quên tính LRC</strong>: chỉ tính VRC rồi dừng → mất nửa điểm.</li>
+    <li>❌ <strong>Trong mô phỏng lỗi, không tính lại VRC và LRC</strong> sau khi đảo bit → không chứng minh được khả năng phát hiện.</li>
+    <li>❌ <strong>Không chỉ ra giao điểm VRC × LRC</strong> → mất điểm "định vị lỗi", giám khảo không thấy được khả năng sửa lỗi.</li>
+    <li>❌ <strong>Đổi hex sang nhị phân sai</strong> (vd 0x9B = 10011011, không phải 10111001). Hãy đếm kỹ từng cặp 4 bit.</li>
+    <li>❌ <strong>Sai vị trí bit</strong>: b7 là MSB (trái nhất), b0 là LSB (phải nhất). Nhầm sẽ đảo hết cột.</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Parity chẵn:</strong> tổng bit 1 (kể cả parity) = chẵn. P = (số bit 1) mod 2.</li>
+    <li><strong>Parity lẻ:</strong> tổng bit 1 = lẻ. P = (số bit 1 + 1) mod 2.</li>
+    <li><strong>VRC</strong>: parity theo <strong>HÀNG</strong> (mỗi byte). Phát hiện byte nào lỗi.</li>
+    <li><strong>LRC</strong>: parity theo <strong>CỘT</strong> (mỗi vị trí bit). Phát hiện vị trí bit nào lỗi.</li>
+    <li><strong>Giao điểm VRC × LRC = vị trí chính xác bit lỗi</strong> → có thể sửa.</li>
+    <li><strong>Parity không phát hiện được 2 bit cùng đảo</strong> (parity vẫn khớp).</li>
+    <li><strong>EDC vs ECC</strong>: Parity = EDC (chỉ phát hiện). VRC+LRC = gần ECC (định vị được). Hamming = ECC thực sự (sửa được).</li>
+    <li><strong>5 bước:</strong> xếp ma trận → VRC → LRC → truyền → nhận tính lại &amp; định vị.</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Mẹo thi nhanh</div>
+  <p>Khi gặp đề parity, đi theo trình tự:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>(1) Đọc kỹ parity chẵn hay lẻ?</strong> — ghi chú rõ trên giấy.</li>
+    <li><strong>(2) Đổi hex → nhị phân</strong> 8 bit, kiểm tra từng cặp 4 bit (vd 0x9B = 1001 1011).</li>
+    <li><strong>(3) Vẽ ma trận có tiêu đề</strong> hàng (Byte 1, 2, 3, 4) và cột (b7..b0).</li>
+    <li><strong>(4) Tính VRC từng hàng</strong>: đếm bit 1 → P. Thêm cột phải.</li>
+    <li><strong>(5) Tính LRC từng cột</strong>: đếm bit 1 xuống dưới → P. Thêm hàng cuối.</li>
+    <li><strong>(6) Mô phỏng lỗi</strong>: đảo 1 bit, tính lại VRC hàng + LRC cột, chỉ ra giao điểm.</li>
+  </ul>
+  <p><strong>Trick nhớ VRC vs LRC:</strong> <em>V</em>RC đứng <em>V</em>ững (theo hàng ngang, mỗi byte), <em>L</em>RC đi <em>L</em>ong (xuống cột dọc, theo vị trí bit). V = hàng, L = cột.</p>
+</div>
+
+<div class="nav-bottom">
+  <a href="06-ieee754-dao.html" class="btn btn-ghost">← Bài 6: Đảo ngược + Double</a>
+  <a href="08-crc.html" class="btn">Bài 8: CRC →</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

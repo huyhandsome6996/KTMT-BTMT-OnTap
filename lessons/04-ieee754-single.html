@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 4: IEEE 754 Single Precision - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 4: IEEE 754 Single Precision</strong>
+  <span>4/14</span>
+</div>
+
+<h1>Bài 4: IEEE 754 Single Precision (số dương)</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Số thực (có phần lẻ) lưu thế nào trong máy tính? Đây là bài khó nhất — nhưng cũng hay ra thi nhất. Học kỹ bài này!
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Bài toán đặt ra</div>
+  <p>Số nguyên lưu bằng hệ nhị phân — dễ. Nhưng số <strong>thực</strong> như 25.1875 hay 0.1 thì sao? Cần một quy ước chuẩn để:</p>
+  <ul style="padding-left: 20px;">
+    <li>Lưu được cả phần nguyên và phần lẻ</li>
+    <li>Lưu được số rất lớn (vd $10^{38}$) và rất nhỏ (vd $10^{-38}$) trong số bit hạn chế</li>
+    <li>Có thể thực hiện phép tính nhanh bằng phần cứng</li>
+  </ul>
+  <p>Năm 1985, Viện IEEE (Hoa Kỳ) đưa ra chuẩn <strong>IEEE 754</strong>, nay được dùng trong mọi CPU/GPU hiện đại.</p>
+</div>
+
+<h3>1. Dạng tổng quát của số thực</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Dạng tổng quát</div>
+  <p>Mọi số thực đều có thể viết dưới dạng:</p>
+  <p>$$X = m \cdot R^{e}$$</p>
+  <p>Trong đó:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>R</strong> = cơ số (radix). Máy tính dùng R = 2 (nhị phân).</li>
+    <li><strong>m</strong> = mantissa (phần định trị) — chứa các chữ số có nghĩa của số.</li>
+    <li><strong>e</strong> = exponent (số mũ) — quy định độ lớn của số (cỡ lớn hay cỡ nhỏ).</li>
+  </ul>
+  <p>Ví dụ: $25.1875 = 1.57421875 \cdot 2^{4}$ — mantissa $m = 1.57421875$, số mũ $e = 4$.</p>
+</div>
+
+<h3>2. Cấu trúc lưu trữ IEEE 754</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Cấu trúc: S | E | F</div>
+  <p>Chuẩn IEEE 754 lưu số thực bằng 3 trường thông tin:</p>
+  <table>
+    <tr>
+      <th>Trường</th>
+      <th>Tên</th>
+      <th>Ý nghĩa</th>
+    </tr>
+    <tr>
+      <td><strong>S</strong></td>
+      <td>Sign (bit dấu)</td>
+      <td>0 = dương, 1 = âm (giống bù 2)</td>
+    </tr>
+    <tr>
+      <td><strong>E</strong></td>
+      <td>Exponent (số mũ có dịch)</td>
+      <td>Lưu e + bias (để biểu diễn cả số mũ âm)</td>
+    </tr>
+    <tr>
+      <td><strong>F</strong></td>
+      <td>Fraction (phần định trị)</td>
+      <td>Phần lẻ sau dấu phẩy của mantissa (bit 1 ngầm định phía trước)</td>
+    </tr>
+  </table>
+  <p>Công thức khôi phục số:</p>
+  <p>$$\boxed{\;X = (-1)^{S} \cdot 2^{E - B} \cdot 1.F\;}$$</p>
+  <p>Trong đó $B$ là <strong>bias</strong> (hằng số dịch), $1.F$ là mantissa (bit 1 trước dấu phẩy được <em>ngầm định</em> — không lưu trong bộ nhớ).</p>
+</div>
+
+<h3>3. Hai định dạng chính</h3>
+
+<table>
+  <tr>
+    <th>Tên</th>
+    <th>Tổng bit</th>
+    <th>S</th>
+    <th>E</th>
+    <th>F</th>
+    <th>Bias B</th>
+    <th>Phạm vi tương đối</th>
+  </tr>
+  <tr>
+    <td><strong>Single Precision</strong> (float)</td>
+    <td>32 bit</td>
+    <td>1 bit</td>
+    <td>8 bit</td>
+    <td>23 bit</td>
+    <td>127</td>
+    <td>≈ $10^{-38}$ đến $10^{38}$</td>
+  </tr>
+  <tr>
+    <td><strong>Double Precision</strong> (double)</td>
+    <td>64 bit</td>
+    <td>1 bit</td>
+    <td>11 bit</td>
+    <td>52 bit</td>
+    <td>1023</td>
+    <td>≈ $10^{-308}$ đến $10^{308}$</td>
+  </tr>
+</table>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Bài này tập trung Single Precision</div>
+  <p>Đề thi chủ yếu yêu cầu Single (32 bit). Quy ước nhớ:</p>
+  <ul style="padding-left: 20px;">
+    <li>Tổng 32 bit = 1 + 8 + 23.</li>
+    <li>Bias = 127 (= $2^{7} - 1$, với 7 = E_bit − 1).</li>
+    <li>Bit "1 ngầm định" phía trước F → mantissa thực = 1.F.</li>
+  </ul>
+  <p>Double cũng giống, chỉ thay: 11 bit E, 52 bit F, bias = 1023 (= $2^{10} - 1$).</p>
+</div>
+
+<h3>4. Vì sao có "bias" và "1 ngầm định"?</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Lý do dùng bias</div>
+  <p>Số mũ e có thể âm (vd $2^{-3}$). Nếu lưu trực tiếp e âm bằng bit dấu, sẽ rơi vào tình huống giống "dấu lượng" (có +0 và −0, cộng trừ phức tạp). Nên IEEE 754 dùng <strong>biased exponent</strong>: lưu $E = e + B$ với $B = 127$.</p>
+  <p>Nhờ vậy, E luôn không âm (0 đến 255), và so sánh hai số thực = so sánh E như số nguyên không dấu → phần cứng thực hiện nhanh.</p>
+  <p>Ví dụ: $e = 4$ → lưu $E = 4 + 127 = 131 = 10000011_2$. $e = -3$ → $E = -3 + 127 = 124 = 01111100_2$.</p>
+</div>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Lý do có "1 ngầm định"</div>
+  <p>Sau khi chuẩn hóa, mantissa luôn có dạng $1.xxxxx$ (bit đầu luôn = 1). Vậy <strong>không cần lưu bit 1 này</strong> — chỉ cần lưu phần $xxxxx$ sau dấu phẩy. Tiết kiệm được 1 bit → tăng độ chính xác.</p>
+  <p>Ví dụ mantissa $1.10010011$ → chỉ cần lưu $10010011$ trong F. Khi khôi phục, CPU tự thêm "1." phía trước.</p>
+  <p><strong>Trường hợp ngoại lệ:</strong> số 0 không có bit 1 đầu (vì 0 = 0.0000...), nên IEEE 754 dành mã đặc biệt E = 0, F = 0 để biểu diễn số 0.</p>
+</div>
+
+<h3>5. Quy trình 5 bước đổi Dec → IEEE 754</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Các bước chuẩn</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Đổi số thập phân sang nhị phân</strong> — tách phần nguyên (chia 2) và phần lẻ (nhân 2), ghép lại.</li>
+    <li><strong>Chuẩn hóa</strong> — dịch dấu phẩy để có dạng $1.xxxxx \cdot 2^{k}$. Ghi nhớ $k$ (số mũ thực).</li>
+    <li><strong>Tính E</strong> — $E = k + B$ với $B = 127$ (Single). Đổi E sang nhị phân 8 bit.</li>
+    <li><strong>Lấy F</strong> — phần sau dấu phẩy của mantissa (sau chữ 1), pad 0 bên phải cho đủ 23 bit.</li>
+    <li><strong>Ghép S | E | F</strong> — S = 0 nếu dương, S = 1 nếu âm. Ghép lại thành 32 bit, đổi sang hexa để viết gọn.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1</div>
+  <p>Sinh viên hay nhầm "phần nguyên thì pad 0 bên trái, phần lẻ thì pad 0 bên phải". Đối với IEEE 754:</p>
+  <ul>
+    <li>E (8 bit) — pad 0 <strong>bên trái</strong> (vì là số nguyên không dấu).</li>
+    <li>F (23 bit) — pad 0 <strong>bên phải</strong> (vì phần lẻ có trọng số giảm dần $2^{-1}, 2^{-2}, \ldots$).</li>
+  </ul>
+  <p>Pad nhầm chiều → kết quả sai hoàn toàn!</p>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Đề bài</div>
+  <p>Cho số thực <strong>X = 25.1875</strong>. Hãy đổi X sang dạng IEEE 754 Single Precision (32 bit) và kiểm tra lại kết quả.</p>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+const steps = [
+  {
+    title: "Bước 1 — Đổi 25.1875 sang nhị phân",
+    content: `
+      <p>Tách thành phần nguyên 25 và phần lẻ 0.1875, đổi riêng rồi ghép.</p>
+      <p><strong>Phần nguyên 25 (chia 2 lấy dư, đọc ngược):</strong></p>
+      <div class="code-block">25 : 2 = 12 dư 1
+12 : 2 =  6 dư 0
+ 6 : 2 =  3 dư 0
+ 3 : 2 =  1 dư 1
+ 1 : 2 =  0 dư 1
+→ 25₁₀ = 11001₂</div>
+      <p><strong>Phần lẻ 0.1875 (nhân 2 lấy phần nguyên, đọc xuôi):</strong></p>
+      <div class="code-block">0.1875 × 2 = 0.375  → lấy 0, còn 0.375
+0.375  × 2 = 0.75   → lấy 0, còn 0.75
+0.75   × 2 = 1.5    → lấy 1, còn 0.5
+0.5    × 2 = 1.0    → lấy 1, còn 0   → DỪNG
+→ 0.1875₁₀ = 0.0011₂</div>
+      <p><strong>Ghép lại:</strong></p>
+      <div class="result-box"><span class="result-label">Kết quả bước 1:</span>25.1875₁₀ = <strong>11001.0011₂</strong></div>
+    `
+  },
+  {
+    title: "Bước 2 — Chuẩn hóa: dịch dấu phẩy để có dạng 1.xxxxx × 2^k",
+    content: `
+      <p>Mục tiêu: đưa về dạng $1.xxxxx \cdot 2^{k}$ (bit đầu = 1, trước dấu phẩy).</p>
+      <p>Số hiện tại: <code>11001.0011</code>. Bit 1 đầu tiên nằm ở vị trí thứ 4 (tính từ dấu phẩy sang trái). Phải dịch dấu phẩy sang trái 4 vị trí để đưa bit 1 đó lên ngay trước dấu phẩy:</p>
+      <div class="code-block">  11001.0011   ← dấu phẩy cũ
+       ↓ dịch trái 4
+   1.10010011 × 2^4</div>
+      <p><strong>Vì sao dịch 4?</strong> Vì muốn "1." ở đầu, ta cần đưa dấu phẩy về ngay sau bit 1 cao nhất (đang ở vị trí $2^4$). Dịch dấu phẩy sang trái $k$ vị trí = nhân với $2^k$.</p>
+      <p>Sau chuẩn hóa:</p>
+      <ul>
+        <li>Mantissa: $m = 1.10010011$</li>
+        <li>Số mũ thực: $k = 4$</li>
+      </ul>
+      <div class="result-box"><span class="result-label">Kết quả bước 2:</span>25.1875 = <strong>1.10010011₂ × 2^4</strong>, k = 4</div>
+    `
+  },
+  {
+    title: "Bước 3 — Tính E = k + 127 và đổi sang 8 bit",
+    content: `
+      <p>Với Single Precision, $B = 127$. Số mũ lưu trong bộ nhớ:</p>
+      <p>$$E = k + B = 4 + 127 = 131$$</p>
+      <p><strong>Đổi 131 sang nhị phân 8 bit</strong> (chia 2 lấy dư):</p>
+      <div class="code-block">131 : 2 = 65 dư 1
+ 65 : 2 = 32 dư 1
+ 32 : 2 = 16 dư 0
+ 16 : 2 =  8 dư 0
+  8 : 2 =  4 dư 0
+  4 : 2 =  2 dư 0
+  2 : 2 =  1 dư 0
+  1 : 2 =  0 dư 1
+→ 131₁₀ = 10000011₂ (đủ 8 bit)</div>
+      <div class="callout callout-tip">
+        <div class="callout-title">💡 Kiểm tra nhanh</div>
+        <p>E nằm trong khoảng [1; 254] cho số "bình thường". 131 ∈ khoảng này → OK.</p>
+        <p>E = 0 (k = −127): số 0 hoặc số không chuẩn hóa (denormal).</p>
+        <p>E = 255 (k = 128): vô cực (Infinity) hoặc NaN.</p>
+      </div>
+      <div class="result-box"><span class="result-label">Kết quả bước 3:</span>E = <strong>10000011₂</strong> (= 131)</div>
+    `
+  },
+  {
+    title: "Bước 4 — Lấy F (23 bit): phần sau dấu phẩy của mantissa",
+    content: `
+      <p>Mantissa chuẩn hóa = $1.10010011$. Bỏ bit "1" trước dấu phẩy (vì nó là bit ngầm định), chỉ lấy phần sau dấu phẩy:</p>
+      <div class="code-block">Mantissa:   1.10010011
+                ↑ bỏ bit này (ngầm định)
+F (thô):    10010011   ← 8 bit</div>
+      <p><strong>Pad 0 bên phải</strong> cho đủ 23 bit (không pad bên trái!):</p>
+      <div class="code-block">F = 10010011 + 15 số 0 = 10010011000000000000000
+                       ↑ 8 bit đầu      ↑ 15 bit pad</div>
+      <p><strong>Vì sao pad bên phải?</strong> Vì đây là phần lẻ sau dấu phẩy, các bit có trọng số $2^{-1}, 2^{-2}, \ldots$ Pad 0 bên phải = thêm các chữ số 0 ở vị trí nhỏ (không đổi giá trị). Nếu pad 0 bên trái sẽ làm sai trọng số.</p>
+      <div class="result-box"><span class="result-label">Kết quả bước 4:</span>F = <strong>10010011000000000000000</strong> (23 bit)</div>
+    `
+  },
+  {
+    title: "Bước 5 — Ghép S | E | F và đổi sang hexa",
+    content: `
+      <p>S = 0 (vì 25.1875 là số dương). Ghép 3 trường lại:</p>
+      <div class="code-block">S |    E (8 bit)    |          F (23 bit)           |
+0 | 1 0 0 0 0 0 1 1 | 1 0 0 1 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+↑                     ↑                                              ↑
+bit 31               bit 30                                         bit 0</div>
+      <p>Đổi sang hexa bằng cách <strong>gom 4 bit từ phải sang trái</strong>:</p>
+      <div class="code-block">0100  0001  1100  1001  1000  0000  0000  0000
+  4     1     C     9     8     0     0     0
+→ 0x41C98000</div>
+      <div class="result-box"><span class="result-label">Kết quả bước 5:</span>25.1875₁₀ = <strong>0 10000011 10010011000000000000000₂</strong> = <strong>0x41C98000</strong></div>
+    `
+  },
+  {
+    title: "Bước 6 — Kiểm tra: khôi phục lại từ IEEE 754 về thập phân",
+    content: `
+      <p>Áp dụng công thức $X = (-1)^{S} \cdot 2^{E - B} \cdot 1.F$:</p>
+      <p><strong>S = 0</strong> → dấu dương (vì $(-1)^0 = +1$).</p>
+      <p><strong>E = 10000011₂ = 131</strong> → số mũ thực $e = E - 127 = 131 - 127 = 4$.</p>
+      <p><strong>F = 10010011000000000000000</strong> → mantissa $= 1.F = 1.10010011_2$.</p>
+      <p>Đổi mantissa sang thập phân:</p>
+      <div class="code-block">1.10010011 = 1 + 1·2^-1 + 0·2^-2 + 0·2^-3 + 1·2^-4 + 0·2^-5 + 0·2^-6 + 1·2^-7 + 1·2^-8
+           = 1 + 0.5 + 0.0625 + 0.0078125 + 0.00390625
+           = 1.57421875</div>
+      <p><strong>Tính X:</strong></p>
+      <div class="code-block">X = (+1) × 2^4 × 1.57421875
+  = 16 × 1.57421875
+  = 25.1875 ✓</div>
+      <p>Khớp với đề bài ban đầu → <strong>ĐÚNG!</strong></p>
+      <div class="result-box"><span class="result-label">Kết luận:</span>25.1875₁₀ ↔ 0x41C98000 (IEEE 754 Single) ✓</div>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🔄 Máy đổi IEEE 754 Single Precision</div>
+
+  <div class="tabs" data-tabs="ieee754" id="tabs-ieee754">
+    <button class="tab active">Số thực → IEEE 754</button>
+    <button class="tab">Tách S | E | F trực quan</button>
+    <button class="tab">Hexa → Số thực</button>
+  </div>
+
+  <!-- Tab 1: Float -> IEEE 754 -->
+  <div class="tab-content active">
+    <p>Nhập số thực dương (vd: 25.1875, 0.5, 1.0, 100.625):</p>
+    <input type="number" id="float-input" value="25.1875" step="0.0001" min="0" style="font-size: 1.1rem; padding: 10px;">
+    <button class="btn mt-1" onclick="convertFloatToIEEE()">Đổi sang IEEE 754!</button>
+
+    <div id="float-result" class="mt-2"></div>
+  </div>
+
+  <!-- Tab 2: Decompose bits -->
+  <div class="tab-content">
+    <p>Nhập 32 bit (chỉ 0 và 1, đủ 32 ký tự):</p>
+    <input type="text" id="bits-input" value="01000011110010011000000000000000" pattern="[01]{32}" maxlength="32" style="font-size: 1rem; padding: 10px; font-family: var(--font-mono);">
+    <button class="btn mt-1" onclick="decomposeBits()">Tách!</button>
+
+    <div id="bits-result" class="mt-2"></div>
+  </div>
+
+  <!-- Tab 3: Hex -> Float -->
+  <div class="tab-content">
+    <p>Nhập số hexa 32-bit (8 chữ số, vd: 41C98000):</p>
+    <input type="text" id="hex-input-ieee" value="41C98000" pattern="[0-9A-Fa-f]{8}" maxlength="8" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono); text-transform: uppercase;">
+    <button class="btn mt-1" onclick="convertHexToFloat()">Đổi sang số thực!</button>
+
+    <div id="hex-float-result" class="mt-2"></div>
+  </div>
+</div>
+
+<script>
+function decToBinFraction(frac, maxBits) {
+  let result = '';
+  let f = frac;
+  for (let i = 0; i < maxBits; i++) {
+    const p = f * 2;
+    if (p >= 1) {
+      result += '1';
+      f = p - 1;
+    } else {
+      result += '0';
+      f = p;
+    }
+    if (f === 0) break;
+  }
+  return result;
+}
+
+function binFractionToDec(fracStr) {
+  let val = 0;
+  for (let i = 0; i < fracStr.length; i++) {
+    if (fracStr[i] === '1') {
+      val += Math.pow(2, -(i + 1));
+    }
+  }
+  return val;
+}
+
+function renderColoredBits(bin32) {
+  // S = bit 0, E = bits 1-8, F = bits 9-31
+  const S = bin32[0];
+  const E = bin32.slice(1, 9);
+  const F = bin32.slice(9, 32);
+
+  let html = '<div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap; margin:1em 0;">';
+
+  // S
+  html += `<div style="border:2px solid var(--accent); border-radius:6px; padding:6px; background:var(--accent-light);">
+    <div style="font-size:0.75rem; text-align:center; color:var(--accent); font-weight:bold;">S</div>
+    <div style="width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:bold; font-size:1.1rem;">${S}</div>
+  </div>`;
+
+  // E (8 bits)
+  html += `<div style="border:2px solid var(--primary); border-radius:6px; padding:6px; background:var(--primary-light); display:flex; flex-direction:column; align-items:center;">
+    <div style="font-size:0.75rem; text-align:center; color:var(--primary-dark); font-weight:bold;">E (8 bit)</div>
+    <div style="display:flex; gap:2px;">`;
+  for (let i = 0; i < 8; i++) {
+    const cls = E[i] === '1' ? 'background:var(--primary); color:white;' : 'background:white; color:var(--gray-700);';
+    html += `<div style="width:24px; height:28px; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:bold; border:1px solid var(--gray-300); border-radius:3px; ${cls}">${E[i]}</div>`;
+  }
+  html += `</div></div>`;
+
+  // F (23 bits)
+  html += `<div style="border:2px solid var(--success); border-radius:6px; padding:6px; background:var(--success-light); display:flex; flex-direction:column; align-items:center;">
+    <div style="font-size:0.75rem; text-align:center; color:var(--success); font-weight:bold;">F (23 bit)</div>
+    <div style="display:flex; gap:2px; flex-wrap:wrap; max-width:280px; justify-content:center;">`;
+  for (let i = 0; i < 23; i++) {
+    const cls = F[i] === '1' ? 'background:var(--success); color:white;' : 'background:white; color:var(--gray-700);';
+    html += `<div style="width:20px; height:24px; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:bold; font-size:0.9rem; border:1px solid var(--gray-300); border-radius:3px; ${cls}">${F[i]}</div>`;
+  }
+  html += `</div></div>`;
+
+  html += '</div>';
+  return { html, S, E, F };
+}
+
+function convertFloatToIEEE() {
+  const x = parseFloat(document.getElementById('float-input').value);
+  if (isNaN(x) || x <= 0) {
+    document.getElementById('float-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải nhập số thực dương lớn hơn 0.</div>';
+    return;
+  }
+
+  let html = '<div class="callout callout-theory"><div class="callout-title">📐 Bước 1 — Đổi sang nhị phân</div>';
+
+  // Integer part
+  const intPart = Math.floor(x);
+  const fracPart = x - intPart;
+  const intBin = intPart.toString(2);
+  const fracBin = decToBinFraction(fracPart, 30);
+
+  html += `<p>Phần nguyên ${intPart} = <code>${intBin}₂</code> (chia 2 lấy dư)</p>`;
+  html += `<p>Phần lẻ ${fracPart.toFixed(6)} = <code>0.${fracBin}₂</code> (nhân 2 lấy phần nguyên)</p>`;
+  html += `<p>→ ${x} = <code>${intBin}.${fracBin}₂</code></p></div>`;
+
+  // Normalize
+  html += '<div class="callout callout-theory mt-2"><div class="callout-title">📐 Bước 2 — Chuẩn hóa</div>';
+  let fullBin = intBin + '.' + fracBin;
+  let k = intBin.length - 1; // shift amount to get 1.xxxxx
+  const mantissa = (intBin + fracBin).slice(1); // everything after the leading 1
+  html += `<p>Dịch dấu phẩy sang trái ${k} vị trí để có dạng 1.xxxxx:</p>`;
+  html += `<p>→ <code>${fullBin}</code> = <code>1.${mantissa}₂ × 2^${k}</code></p>`;
+  html += `<p>Mantissa: m = <code>1.${mantissa}</code>, số mũ thực k = <strong>${k}</strong></p></div>`;
+
+  // Compute E
+  html += '<div class="callout callout-theory mt-2"><div class="callout-title">📐 Bước 3 — Tính E</div>';
+  const E_val = k + 127;
+  const E_bin = E_val.toString(2).padStart(8, '0');
+  html += `<p>E = k + 127 = ${k} + 127 = <strong>${E_val}</strong></p>`;
+  html += `<p>E (8 bit) = <code>${E_bin}₂</code></p></div>`;
+
+  // Compute F
+  html += '<div class="callout callout-theory mt-2"><div class="callout-title">📐 Bước 4 — Lấy F (23 bit)</div>';
+  const F = mantissa.slice(0, 23).padEnd(23, '0');
+  html += `<p>F = phần sau dấu phẩy của mantissa, pad 0 bên phải cho đủ 23 bit:</p>`;
+  html += `<p><code>F = ${F}</code></p></div>`;
+
+  // Assemble
+  html += '<div class="callout callout-theory mt-2"><div class="callout-title">📐 Bước 5 — Ghép S | E | F</div>';
+  const S_bit = '0';
+  const bin32 = S_bit + E_bin + F;
+  const hexStr = parseInt(bin32, 2).toString(16).toUpperCase().padStart(8, '0');
+
+  html += `<p>S = 0 (vì ${x} > 0)</p>`;
+  html += `<p>32 bit: <code>${bin32}</code></p>`;
+
+  const { html: colored } = renderColoredBits(bin32);
+  html += colored;
+  html += `<p>Đổi sang hexa (gom 4 bit):</p>`;
+  let paddedBin = bin32;
+  let hexHtml = '<div class="code-block">';
+  for (let i = 0; i < 32; i += 4) {
+    const grp = paddedBin.slice(i, i + 4);
+    const h = parseInt(grp, 2).toString(16).toUpperCase();
+    hexHtml += `${grp} → ${h}\n`;
+  }
+  hexHtml += '</div>';
+  html += hexHtml;
+  html += `<div class="result-box"><span class="result-label">Kết quả:</span>${x} = <strong>0x${hexStr}</strong> = 0 ${E_bin} ${F}</div></div>`;
+
+  document.getElementById('float-result').innerHTML = html;
+}
+
+function decomposeBits() {
+  const bits = document.getElementById('bits-input').value.trim();
+  if (!/^[01]{32}$/.test(bits)) {
+    document.getElementById('bits-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải nhập đúng 32 ký tự 0 hoặc 1.</div>';
+    return;
+  }
+
+  const { html: colored, S, E, F } = renderColoredBits(bits);
+  let html = '<h4>32 bit được tách thành 3 trường:</h4>';
+  html += colored;
+
+  const E_dec = parseInt(E, 2);
+  const e = E_dec - 127;
+  const mantissa = 1 + binFractionToDec(F);
+  const X = Math.pow(2, e) * mantissa * (S === '1' ? -1 : 1);
+
+  html += '<div class="callout callout-theory mt-2"><div class="callout-title">📐 Phân tích chi tiết</div>';
+  html += `<p><strong>S = ${S}</strong> → dấu ${S === '0' ? 'dương (+1)' : 'âm (−1)'}</p>`;
+  html += `<p><strong>E = ${E}₂ = ${E_dec}₁₀</strong> → số mũ thực e = E − 127 = <strong>${e}</strong></p>`;
+  html += `<p><strong>F = ${F}</strong> → mantissa 1.F = 1 + ${binFractionToDec(F).toFixed(8)} = <strong>${mantissa.toFixed(8)}</strong></p>`;
+  html += `<p><strong>X = (−1)^S × 2^e × 1.F</strong> = ${S === '0' ? '+1' : '−1'} × 2^${e} × ${mantissa.toFixed(8)} = <strong>${X}</strong></p></div>`;
+
+  const hexStr = parseInt(bits, 2).toString(16).toUpperCase().padStart(8, '0');
+  html += `<div class="result-box"><span class="result-label">Kết quả:</span>${bits}₂ = <strong>0x${hexStr}</strong> = ${X}</div>`;
+
+  document.getElementById('bits-result').innerHTML = html;
+}
+
+function convertHexToFloat() {
+  let hexStr = document.getElementById('hex-input-ieee').value.trim().toUpperCase();
+  if (!/^[0-9A-F]{8}$/.test(hexStr)) {
+    document.getElementById('hex-float-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải nhập đúng 8 chữ số hexa.</div>';
+    return;
+  }
+
+  const dec = parseInt(hexStr, 16);
+  const bin32 = dec.toString(2).padStart(32, '0');
+
+  const { html: colored, S, E, F } = renderColoredBits(bin32);
+  let html = `<div class="callout callout-theory"><div class="callout-title">📐 Bước 1 — Đổi 0x${hexStr} sang 32 bit</div>`;
+  html += `<p>0x${hexStr} = <code>${bin32}₂</code></p></div>`;
+
+  html += '<div class="callout callout-theory mt-2"><div class="callout-title">📐 Bước 2 — Tách S | E | F</div>';
+  html += colored;
+
+  const E_dec = parseInt(E, 2);
+  const e = E_dec - 127;
+  const mantissa = 1 + binFractionToDec(F);
+  const X = Math.pow(2, e) * mantissa * (S === '1' ? -1 : 1);
+
+  html += `<p>S = ${S} → ${S === '0' ? 'dương' : 'âm'}</p>`;
+  html += `<p>E = ${E_dec} → e = ${E_dec} − 127 = ${e}</p>`;
+  html += `<p>F = ${F}</p>`;
+  html += `<p>1.F = ${mantissa.toFixed(10)}</p></div>`;
+
+  html += `<div class="callout callout-theory mt-2"><div class="callout-title">📐 Bước 3 — Tính X</div>`;
+  html += `<p>X = (−1)^${S} × 2^${e} × ${mantissa.toFixed(10)} = <strong>${X}</strong></p></div>`;
+
+  html += `<div class="result-box"><span class="result-label">Kết quả:</span>0x${hexStr} = <strong>${X}</strong></div>`;
+
+  document.getElementById('hex-float-result').innerHTML = html;
+}
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Đổi <strong>0.5₁₀</strong> sang IEEE 754 Single Precision (32 bit).",
+    answer: `Bước 1: 0.5 × 2 = 1.0 → lấy 1, còn 0 → DỪNG<br>
+    → 0.5₁₀ = 0.1₂<br>
+    <br>
+    Bước 2 — Chuẩn hóa: 0.1 = 1.0 × 2^(−1), k = −1<br>
+    <br>
+    Bước 3 — E = −1 + 127 = 126 = 01111110₂<br>
+    <br>
+    Bước 4 — F = phần sau dấu phẩy của 1.0 = (không có gì) → pad 23 số 0<br>
+    F = 00000000000000000000000<br>
+    <br>
+    Bước 5 — S = 0, ghép:<br>
+    0 | 01111110 | 00000000000000000000000<br>
+    = 00111111000000000000000000000000₂<br>
+    <br>
+    Hexa (gom 4 bit): 0011 1111 0000 0000 0000 0000 0000 0000<br>
+    → <strong>0x3F000000</strong>`
+  },
+  {
+    question: "Đổi <strong>1.0₁₀</strong> sang IEEE 754 Single Precision. Đây có phải số đặc biệt không?",
+    answer: `Bước 1: 1 = 1₂, phần lẻ = 0<br>
+    → 1.0₁₀ = 1.0₂<br>
+    <br>
+    Bước 2 — Chuẩn hóa: 1.0 = 1.0 × 2^0, k = 0<br>
+    (bit 1 đã ở trước dấu phẩy, không cần dịch)<br>
+    <br>
+    Bước 3 — E = 0 + 127 = 127 = 01111111₂<br>
+    <br>
+    Bước 4 — F = 0 (không có phần lẻ) → pad 23 số 0<br>
+    <br>
+    Bước 5 — Ghép:<br>
+    0 | 01111111 | 00000000000000000000000<br>
+    = 00111111100000000000000000000000₂<br>
+    <br>
+    Hexa: 0011 1111 1000 0000 ... → <strong>0x3F800000</strong><br>
+    <br>
+    Đây là số "chuẩn" (normalized) — không phải số đặc biệt. Số 0 sẽ có E = 0 và F = 0.`
+  },
+  {
+    question: "Khôi phục số thực từ IEEE 754: <strong>0x42C80000</strong>.",
+    answer: `Đổi 0x42C80000 sang nhị phân 32 bit:<br>
+    42C80000 = 0100 0010 1100 1000 0000 0000 0000 0000<br>
+    → 01000010110010000000000000000000₂<br>
+    <br>
+    Tách:<br>
+    S = 0 → dương<br>
+    E = 10000101 = 133 → e = 133 − 127 = 6<br>
+    F = 10010000000000000000000<br>
+    <br>
+    1.F = 1.1001₂ = 1 + 1·2^(−1) + 0 + 0 + 1·2^(−4)<br>
+        = 1 + 0.5 + 0.0625 = 1.5625<br>
+    <br>
+    X = (+1) × 2^6 × 1.5625 = 64 × 1.5625 = <strong>100.0</strong>`
+  },
+  {
+    question: "Mantissa 1.F có bit 1 ngầm định phía trước. Nếu bỏ qua quy ước này (lưu cả bit 1), sẽ mất gì?",
+    answer: `Nếu lưu cả bit 1 phía trước F, ta sẽ tốn thêm 1 bit nhưng không được thêm thông tin (vì bit đó luôn = 1 với mọi số chuẩn hóa).<br>
+    <br>
+    Mất 1 bit → F chỉ còn 22 bit hiệu dụng thay vì 23 → độ chính xác giảm một nửa (mất 1 bit có nghĩa).<br>
+    <br>
+    Quy ước "1 ngầm định" cho phép tận dụng tối đa 23 bit của F để lưu phần định trị → tối ưu độ chính xác. Đây là một "thủ thuật" tuyệt vời của chuẩn IEEE 754.<br>
+    <br>
+    Ngoại lệ: số 0 (và số denormal) không có bit 1 ngầm định, phải dùng mã đặc biệt (E = 0).`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "IEEE 754 Single Precision có tổng cộng bao nhiêu bit?",
+    options: ["16 bit", "32 bit", "64 bit", "128 bit"],
+    correct: 1,
+    explanation: "Single Precision = 32 bit = 1 (S) + 8 (E) + 23 (F). Double Precision = 64 bit."
+  },
+  {
+    question: "Giá trị bias B của Single Precision là bao nhiêu?",
+    options: ["127", "255", "1023", "63"],
+    correct: 0,
+    explanation: "Single có 8 bit E → bias = 2^7 − 1 = 127. Double có 11 bit E → bias = 2^10 − 1 = 1023."
+  },
+  {
+    question: "Công thức khôi phục số từ IEEE 754 là:",
+    options: ["X = (−1)^S × 2^E × F", "X = (−1)^S × 2^(E−B) × 1.F", "X = S × 2^(E−B) × F", "X = 2^(E−B) × 1.F"],
+    correct: 1,
+    explanation: "Công thức chuẩn: X = (−1)^S × 2^(E − B) × 1.F, với B = 127 cho Single. Chú ý số mũ là E − B và mantissa có bit '1.' ngầm định phía trước."
+  },
+  {
+    question: "Vì sao phải có bias (hằng số dịch) trong trường E?",
+    options: ["Để tăng độ chính xác", "Để E luôn không âm (tránh bit dấu trong E), so sánh nhanh", "Để biểu diễn số 0", "Để pad 0 cho đủ bit"],
+    correct: 1,
+    explanation: "Bias giúp E luôn trong khoảng [0; 255], không cần bit dấu. So sánh hai số thực = so sánh E như số nguyên không dấu → phần cứng thực hiện nhanh."
+  },
+  {
+    question: "Số 25.1875 đổi sang IEEE 754 Single là 0x41C98000. Trường E (số mũ lưu) là gì?",
+    options: ["0x41", "0xC9", "0x41C9", "10000011₂"],
+    correct: 3,
+    explanation: "0x41C98000 = 0100 0001 1100 1001 ... → S = 0, E = 10000011 = 131. e = 131 − 127 = 4 (đúng với 25.1875 = 1.5742 × 2^4)."
+  },
+  {
+    question: "Khi pad F cho đủ 23 bit, pad 0 về phía nào?",
+    options: ["Bên trái (giống số nguyên)", "Bên phải (giống phần lẻ)", "Hai bên", "Tùy ý"],
+    correct: 1,
+    explanation: "F là phần lẻ sau dấu phẩy, các bit có trọng số 2^(−1), 2^(−2), ... Pad 0 bên phải = thêm các chữ số 0 ở vị trí nhỏ (không đổi giá trị). Pad bên trái sẽ làm sai trọng số."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn</div>
+  <p>Đây là cách GIÁM KHẢO MUỐN THẤY. Học theo mẫu này!</p>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Đổi số thực 25.1875 sang dạng IEEE 754 Single Precision (32 bit) và kiểm tra lại.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải:</strong>
+
+<strong>Bước 1 — Đổi 25.1875 sang nhị phân</strong>
+
+Phần nguyên 25 (chia 2 lấy dư, đọc ngược):
+  25 : 2 = 12 dư 1
+  12 : 2 =  6 dư 0
+   6 : 2 =  3 dư 0
+   3 : 2 =  1 dư 1
+   1 : 2 =  0 dư 1
+  → 25 = 11001₂
+
+Phần lẻ 0.1875 (nhân 2 lấy phần nguyên, đọc xuôi):
+  0.1875 × 2 = 0.375  → 0
+  0.375  × 2 = 0.75   → 0
+  0.75   × 2 = 1.5    → 1, còn 0.5
+  0.5    × 2 = 1.0    → 1, còn 0   → DỪNG
+  → 0.1875 = 0.0011₂
+
+→ 25.1875₁₀ = 11001.0011₂
+
+<strong>Bước 2 — Chuẩn hóa (đưa về dạng 1.xxxxx × 2^k)</strong>
+
+  11001.0011 = 1.10010011 × 2^4    (dịch dấu phẩy trái 4 vị trí)
+  → mantissa m = 1.10010011, số mũ thực k = 4
+
+<strong>Bước 3 — Tính E</strong>
+
+  E = k + bias = 4 + 127 = 131
+  131 = 10000011₂  (8 bit)
+
+<strong>Bước 4 — Lấy F (23 bit)</strong>
+
+  Mantissa = 1.10010011 → bỏ bit "1" trước dấu phẩy (ngầm định)
+  F = 10010011 + pad 0 bên phải cho đủ 23 bit
+  F = 10010011000000000000000
+
+<strong>Bước 5 — Ghép S | E | F</strong>
+
+  S = 0 (dương)
+  S |     E     |             F
+  0 | 10000011  | 10010011000000000000000
+
+  = 01000001110010011000000000000000₂
+
+  Hexa (gom 4 bit): 0100 0001 1100 1001 1000 0000 0000 0000
+                    = 4    1    C    9    8    0    0    0
+  → 0x41C98000
+
+<strong>Bước 6 — Kiểm tra</strong>
+
+  S = 0 → dấu dương
+  E = 131 → e = 131 − 127 = 4
+  F = 10010011000000000000000 → 1.F = 1.10010011₂
+                               = 1 + 0.5 + 0.0625 + 0.0078125 + 0.00390625
+                               = 1.57421875
+  X = (+1) × 2^4 × 1.57421875 = 16 × 1.57421875 = 25.1875 ✓
+
+<strong>Kết luận:</strong> 25.1875₁₀ = 0 10000011 10010011000000000000000₂ = 0x41C98000</pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn tách 5 bước rõ ràng</strong> — mỗi bước có tiêu đề, có công thức áp dụng, có kết quả riêng. Đừng gộp vì giám khảo chấm theo từng bước.</li>
+    <li><strong>Phần nguyên: CHIA 2 lấy dư, đọc ngược. Phần lẻ: NHÂN 2 lấy nguyên, đọc xuôi.</strong> Đây là điểm sai phổ biến nhất — viết sai chiều là sai toàn bài.</li>
+    <li><strong>Ghi chú "dịch dấu phẩy trái k vị trí" khi chuẩn hóa</strong> — chứng tỏ bạn hiểu k là số lần dịch, không phải một con số "tự nhiên".</li>
+    <li><strong>Pad 0 bên PHẢI cho F, bên TRÁI cho E</strong> — đây là cạm bẫy lớn. Nếu nhầm, kết quả sai hoàn toàn.</li>
+    <li><strong>Luôn có bước kiểm tra</strong> — đổi ngược lại từ 32 bit ra số thập phân. Đây là cách duy nhất để tự bắt lỗi trước khi nộp bài.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ <strong>Nhầm chiều pad 0 cho F</strong> — pad bên trái (giống số nguyên) thay vì bên phải. Sai hoàn toàn.</li>
+    <li>❌ <strong>Quên chuẩn hóa</strong> — để mantissa dạng 11.0010011 thay vì 1.10010011. Sẽ ra sai E và F.</li>
+    <li>❌ <strong>Quên bias</strong> — ghi E = k thay vì E = k + 127. Sai số mũ.</li>
+    <li>❌<strong>Bao gồm cả bit "1" ngầm định vào F</strong> — F chỉ là phần SAU dấu phẩy, không chứa bit 1 đầu.</li>
+    <li>❌ <strong>Quên S</strong> — chỉ tính E và F mà quên bit dấu S. Với số dương S = 0, nhưng vẫn phải ghi.</li>
+    <li>❌ <strong>Đổi hexa sai</strong> — gom 4 bit từ TRÁI sang (sai) thay vì từ PHẢI sang. Phải gom từ phải và pad 0 bên trái cho đủ 32 bit trước khi gom.</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li>Số thực tổng quát: $X = m \cdot R^{e}$ (máy tính dùng R = 2).</li>
+    <li>IEEE 754 lưu số dưới dạng: $X = (-1)^{S} \cdot 2^{E-B} \cdot 1.F$.</li>
+    <li>Single Precision: 32 bit = S(1) + E(8) + F(23), bias B = 127.</li>
+    <li>Double Precision: 64 bit = S(1) + E(11) + F(52), bias B = 1023.</li>
+    <li><strong>S</strong> = bit dấu (0 dương, 1 âm).</li>
+    <li><strong>E</strong> = e + B (số mũ lưu, luôn không âm).</li>
+    <li><strong>F</strong> = phần sau dấu phẩy của mantissa (bit "1." ngầm định phía trước, không lưu).</li>
+    <li>5 bước đổi: nhị phân → chuẩn hóa → tính E → lấy F → ghép.</li>
+    <li>Pad 0: E bên trái, F bên phải.</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Bảng tham chiếu nhanh</div>
+  <table>
+    <tr><th>Trường</th><th>Số bit</th><th>Vị trí</th><th>Cách tính</th></tr>
+    <tr><td>S</td><td>1</td><td>bit 31</td><td>0 = dương, 1 = âm</td></tr>
+    <tr><td>E</td><td>8</td><td>bit 30-23</td><td>E = e + 127, đổi sang 8 bit</td></tr>
+    <tr><td>F</td><td>23</td><td>bit 22-0</td><td>Phần sau dấu phẩy của mantissa chuẩn hóa</td></tr>
+  </table>
+  <p><strong>Tổng số bit:</strong> 1 + 8 + 23 = 32 ✓</p>
+  <p><strong>Mẹo nhớ bias:</strong> Với n bit E, bias = $2^{n-1} - 1$. Single: n = 8 → bias = 127. Double: n = 11 → bias = 1023.</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Các trường hợp đặc biệt (nâng cao)</div>
+  <table>
+    <tr><th>E</th><th>F</th><th>Ý nghĩa</th></tr>
+    <tr><td>0</td><td>= 0</td><td>Số 0 (có +0 và −0)</td></tr>
+    <tr><td>0</td><td>≠ 0</td><td>Số denormal (không chuẩn hóa, cực nhỏ)</td></tr>
+    <tr><td>1 đến 254</td><td>bất kỳ</td><td>Số "bình thường" (normalized) — bài này chỉ lo loại này</td></tr>
+    <tr><td>255</td><td>= 0</td><td>Vô cực (Infinity, ±∞)</td></tr>
+    <tr><td>255</td><td>≠ 0</td><td>NaN (Not a Number — vd 0/0, √−1)</td></tr>
+  </table>
+  <p>Phần lớn bài thi chỉ yêu cầu số "bình thường". Nếu đề cho số rất nhỏ/lớn, hãy kiểm tra xem có rơi vào trường hợp đặc biệt không.</p>
+</div>
+
+<div class="nav-bottom">
+  <a href="03-endian.html" class="btn btn-ghost">← Bài 3: Endian</a>
+  <a href="05-ieee754-am.html" class="btn">Bài 5: Số bù 1 →</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

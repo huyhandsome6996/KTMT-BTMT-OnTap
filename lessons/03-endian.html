@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 3: Big Endian vs Little Endian - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 3: Big Endian vs Little Endian</strong>
+  <span>3/14</span>
+</div>
+
+<h1>Bài 3: Big Endian vs Little Endian</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Một số 32 bit chiếm 4 ô nhớ. Nhưng byte nào nằm ở ô địa chỉ nhỏ? Bài này giải thích hai trường phái "Endianness" và lý do mạng TCP/IP luôn dùng Big Endian.
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Vấn đề cần giải quyết</div>
+  <p>Bộ nhớ máy tính được chia thành các <strong>ô nhớ (cell)</strong>, mỗi ô có <strong>địa chỉ</strong> và chứa đúng <strong>1 byte</strong> (8 bit). Vậy nếu ta cần lưu một số nhiều byte (vd số 32 bit = 4 byte), thì <strong>byte nào đặt ở ô địa chỉ nhỏ hơn</strong>?</p>
+  <p>Không có đáp án "đúng" tuyệt đối — có hai trường phái: <strong>Big Endian</strong> và <strong>Little Endian</strong>. Sự khác biệt này là nguồn gốc của rất nhiều bug khi chuyển dữ liệu giữa hai kiến trúc máy tính khác nhau.</p>
+</div>
+
+<h3>1. Thuật ngữ MSB và LSB</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Định nghĩa</div>
+  <p>Xét một số nguyên N byte, viết theo thông thường của con người (byte có giá trị cao bên trái, thấp bên phải):</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>MSB (Most Significant Byte)</strong> = byte có giá trị cao nhất, viết bên trái. Đóng góp lớn nhất vào giá trị số.</li>
+    <li><strong>LSB (Least Significant Byte)</strong> = byte có giá trị thấp nhất, viết bên phải. Đóng góp nhỏ nhất.</li>
+  </ul>
+  <p>Ví dụ: số <code>0x12345678</code> (32 bit = 4 byte):</p>
+  <div class="code-block">  12    34    56    78
+   ↑                       ↑
+  MSB                     LSB
+(byte cao)            (byte thấp)</div>
+  <p><strong>⚠️ Lưu ý quan trọng:</strong> "MSB" ở bài này là "Most Significant <em>Byte</em>" (byte cao), không phải "Most Significant <em>Bit</em>" (bit cao) như Bài 2. Cần phân biệt ngữ cảnh!</p>
+</div>
+
+<h3>2. Hai trường phái Endianness</h3>
+
+<table>
+  <tr>
+    <th>Trường phái</th>
+    <th>Quy tắc</th>
+    <th>Ví dụ với 0x12345678</th>
+    <th>AI sử dụng</th>
+  </tr>
+  <tr>
+    <td><strong>Big Endian</strong></td>
+    <td>MSB để ở ô địa chỉ nhỏ (giữ nguyên thứ tự như con người đọc)</td>
+    <td>12 34 56 78</td>
+    <td>Motorola 68k, PowerPC, SPARC, <strong>TCP/IP (network order)</strong></td>
+  </tr>
+  <tr>
+    <td><strong>Little Endian</strong></td>
+    <td>LSB để ở ô địa chỉ nhỏ (đảo ngược thứ tự byte)</td>
+    <td>78 56 34 12</td>
+    <td>Intel x86/x64, ARM (chế độ mặc định), VAX</td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Đừng nhầm "đảo bit" với "đảo byte"!</div>
+  <p>Trong Little Endian, chỉ đảo <strong>thứ tự byte</strong>, không đảo bit bên trong mỗi byte. Ví dụ byte <code>0x78</code> vẫn giữ nguyên là <code>01111000</code> — chỉ là nó được đặt vào ô địa chỉ thấp hơn thay vì ô cao.</p>
+</div>
+
+<h3>3. Mô hình bộ nhớ trực quan</h3>
+
+<p>Giả sử lưu số 32-bit <code>0x12345678</code> vào ô nhớ bắt đầu từ địa chỉ <code>0x1000</code>:</p>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Big Endian — "Đầu to đi trước"</div>
+  <div class="code-block">Địa chỉ:   0x1000  0x1001  0x1002  0x1003
+Giá trị:     12      34      56      78
+            ↑ MSB                   ↑ LSB
+       (ô thấp nhất)         (ô cao nhất)</div>
+  <p>Đọc từ ô thấp lên cao: <code>12 34 56 78</code> → đúng như ta viết → dễ đọc cho con người.</p>
+</div>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Little Endian — "Đầu nhỏ đi trước"</div>
+  <div class="code-block">Địa chỉ:   0x1000  0x1001  0x1002  0x1003
+Giá trị:     78      56      34      12
+            ↑ LSB                   ↑ MSB
+       (ô thấp nhất)         (ô cao nhất)</div>
+  <p>Đọc từ ô thấp lên cao: <code>78 56 34 12</code> → phải đảo ngược mới ra số gốc. Khó đọc cho con người, nhưng có ưu điểm về phần cứng (xem phần lý do bên dưới).</p>
+</div>
+
+<h3>4. Vì sao có hai trường phái?</h3>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Ưu điểm của Big Endian</div>
+  <ul style="padding-left: 20px;">
+    <li><strong>Dễ đọc cho con người</strong>: dump bộ nhớ ra là thấy ngay số gốc theo thứ tự thông thường.</li>
+    <li><strong>So sánh số dễ</strong>: đọc byte đầu tiên (ô thấp) là biết số lớn hay nhỏ → hỗ trợ so sánh từ trái sang phải.</li>
+    <li><strong>Là chuẩn mạng TCP/IP</strong>: được gọi là <em>network byte order</em>.</li>
+  </ul>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Ưu điểm của Little Endian</div>
+  <ul style="padding-left: 20px;">
+    <li><strong>Ép kiểu tự nhiên</strong>: số 32-bit lưu ở địa chỉ X có thể đọc như số 8-bit, 16-bit tại cùng địa chỉ — không cần dịch bit. Vd số <code>0x12345678</code> lưu LE, đọc 1 byte tại địa chỉ gốc sẽ ra <code>0x78</code> (phần thấp), đúng như mong đợi.</li>
+    <li><strong>Cộng trừ dễ</strong>: CPU thực hiện phép cộng từ byte thấp lên byte cao (lan truyền carry), LE cho phép đọc byte thấp ngay tại ô đầu.</li>
+    <li><strong>Tăng dần độ chính xác</strong>: có thể đọc byte đầu tiên để có kết quả xấp xỉ, sau đó đọc thêm byte để có kết quả chính xác — hữu ích cho số thực.</li>
+  </ul>
+</div>
+
+<h3>5. Network Byte Order &amp; hàm hton/ntoh</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Quy ước mạng</div>
+  <p>Vì các máy trên mạng có thể dùng Endianness khác nhau, <strong>TCP/IP quy định tất cả số nguyên đa-byte truyền đi phải ở dạng Big Endian</strong>, gọi là <em>network byte order</em>.</p>
+  <p>Trước khi gửi, máy nguồn phải convert từ <em>host byte order</em> (thứ tự nội bộ, có thể là LE hoặc BE) sang <em>network byte order</em>. Khi nhận, làm ngược lại. Có 4 hàm C chuẩn:</p>
+  <ul style="padding-left: 20px;">
+    <li><code>htonl(host_long)</code> — Host TO Network Long (32 bit)</li>
+    <li><code>htons(host_short)</code> — Host TO Network Short (16 bit)</li>
+    <li><code>ntohl(net_long)</code> — Network TO Host Long (32 bit)</li>
+    <li><code>ntohs(net_short)</code> — Network TO Host Short (16 bit)</li>
+  </ul>
+  <p>Trên máy Big Endian, các hàm này không làm gì (vì host = network). Trên máy Little Endian, chúng đảo ngược thứ tự byte.</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1</div>
+  <p>Sinh viên hay nghĩ " hton = đảo byte". <strong>SAI</strong>. <code>hton</code> chỉ đảo byte nếu máy đang dùng Little Endian. Trên máy BE, <code>hton</code> trả về y nguyên. Code đúng là code luôn gọi <code>hton/ntoh</code> bất kể máy nào — để hàm tự quyết định.</p>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Đề bài</div>
+  <p>Cho số thập phân <strong>N = 70 541 023</strong>. Hãy:</p>
+  <ul style="padding-left: 20px;">
+    <li>a) Đổi N sang hexa 32-bit</li>
+    <li>b) Tách thành 4 byte, xác định MSB và LSB</li>
+    <li>c) Viết sơ đồ lưu trữ theo Big Endian tại địa chỉ 0x1000</li>
+    <li>d) Viết sơ đồ lưu trữ theo Little Endian tại địa chỉ 0x1000</li>
+    <li>e) Làm tương tự cho số 0xABCD1234</li>
+  </ul>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+const steps = [
+  {
+    title: "Bước 1 — Đổi N = 70 541 023 sang hexa",
+    content: `
+      <p>Áp dụng phương pháp <strong>chia 16 lấy dư, đọc ngược từ dưới lên</strong> (như Bài 1):</p>
+      <div class="code-block">70541023 : 16 = 4408813 dư <strong>15</strong>  (F)   ← chữ số thấp nhất
+4408813  : 16 = 275550  dư <strong>13</strong>  (D)
+275550   : 16 = 17221   dư <strong>14</strong>  (E)
+17221    : 16 = 1076    dư <strong>5</strong>   (5)
+1076     : 16 = 67      dư <strong>4</strong>   (4)
+67       : 16 = 4       dư <strong>3</strong>   (3)
+4        : 16 = 0       dư <strong>4</strong>   (4)   ← chữ số cao nhất</div>
+      <p><strong>Đọc dư từ dưới lên:</strong> 4 3 4 5 E D F → <strong>0x04345EDF</strong></p>
+      <p>Kiểm tra nhanh: $0x04345EDF = 4 \cdot 16^6 + 3 \cdot 16^5 + 4 \cdot 16^4 + 5 \cdot 16^3 + 14 \cdot 16^2 + 13 \cdot 16^1 + 15 \cdot 16^0 = 70\,541\,023$ ✓</p>
+      <div class="result-box"><span class="result-label">Kết quả bước 1:</span>70 541 023₁₀ = <strong>0x04345EDF</strong></div>
+    `
+  },
+  {
+    title: "Bước 2 — Tách thành 4 byte, xác định MSB và LSB",
+    content: `
+      <p>Số hexa <code>0x04345EDF</code> có 8 chữ số hexa = 32 bit = 4 byte. Mỗi 2 chữ số hexa = 1 byte.</p>
+      <p><strong>Tách từ trái sang phải (cách con người đọc):</strong></p>
+      <div class="code-block">0x | 04 | 34 | 5E | DF
+       ↑                      ↑
+      byte 1 (MSB)         byte 4 (LSB)
+      = 0x04              = 0xDF</div>
+      <p><strong>Ý nghĩa từng byte:</strong></p>
+      <ul>
+        <li><code>0x04</code> = byte cao nhất (MSB) — có trọng số $16^6 = 2^{24}$</li>
+        <li><code>0x34</code> = byte 2 — có trọng số $16^4 = 2^{16}$</li>
+        <li><code>0x5E</code> = byte 3 — có trọng số $16^2 = 2^{8}$</li>
+        <li><code>0xDF</code> = byte thấp nhất (LSB) — có trọng số $16^0 = 2^0$</li>
+      </ul>
+      <div class="result-box"><span class="result-label">Kết quả bước 2:</span>4 byte (theo thứ tự MSB→LSB): <strong>04 34 5E DF</strong></div>
+    `
+  },
+  {
+    title: "Bước 3 — Sơ đồ lưu trữ theo Big Endian tại 0x1000",
+    content: `
+      <p><strong>Quy tắc Big Endian:</strong> byte cao (MSB) để ở ô địa chỉ nhỏ. Cứ điền tuần tự từ trái sang phải như ta đọc.</p>
+      <div class="code-block">Địa chỉ:    0x1000   0x1001   0x1002   0x1003
+            ↓        ↓        ↓        ↓
+Giá trị:    0x04     0x34     0x5E     0xDF
+           ↑ MSB                       ↑ LSB
+       (ô thấp nhất)              (ô cao nhất)</div>
+      <p><strong>Vì sao vậy?</strong> Vì Big Endian "đầu to đi trước": byte có giá trị cao nhất (MSB = 0x04) được đặt vào ô nhớ đầu tiên (địa chỉ nhỏ nhất = 0x1000). Sau đó các byte tiếp theo đi theo thứ tự giảm dần giá trị.</p>
+      <div class="result-box"><span class="result-label">Big Endian:</strong> Địa chỉ 0x1000→0x1003 chứa: <strong>04 34 5E DF</strong></div>
+    `
+  },
+  {
+    title: "Bước 4 — Sơ đồ lưu trữ theo Little Endian tại 0x1000",
+    content: `
+      <p><strong>Quy tắc Little Endian:</strong> byte thấp (LSB) để ở ô địa chỉ nhỏ. Đảo ngược thứ tự byte so với Big Endian.</p>
+      <div class="code-block">Địa chỉ:    0x1000   0x1001   0x1002   0x1003
+            ↓        ↓        ↓        ↓
+Giá trị:    0xDF     0x5E     0x34     0x04
+           ↑ LSB                       ↑ MSB
+       (ô thấp nhất)              (ô cao nhất)</div>
+      <p><strong>Vì sao vậy?</strong> Vì Little Endian "đầu nhỏ đi trước": byte có giá trị thấp nhất (LSB = 0xDF) được đặt vào ô nhớ đầu tiên (địa chỉ nhỏ nhất = 0x1000). Sau đó các byte có giá trị tăng dần đi sau.</p>
+      <p><strong>So sánh nhanh:</strong> Big Endian giữ nguyên <code>04 34 5E DF</code>; Little Endian đảo ngược thành <code>DF 5E 34 04</code>. <em>Lưu ý: chỉ đảo byte, không đảo bit trong mỗi byte!</em></p>
+      <div class="result-box"><span class="result-label">Little Endian:</span>Địa chỉ 0x1000→0x1003 chứa: <strong>DF 5E 34 04</strong></div>
+    `
+  },
+  {
+    title: "Bước 5 — Ví dụ thứ hai: số 0xABCD1234",
+    content: `
+      <p>Số <code>0xABCD1234</code> đã ở dạng hexa 32 bit (8 chữ số hexa = 4 byte). Tách thành 4 byte:</p>
+      <div class="code-block">0xABCD1234 = | AB | CD | 12 | 34 |
+                  ↑                    ↑
+                 MSB                  LSB</div>
+      <p><strong>Big Endian (giữ nguyên):</strong></p>
+      <div class="code-block">0x1000: AB    0x1001: CD    0x1002: 12    0x1003: 34</div>
+      <p><strong>Little Endian (đảo ngược thứ tự byte):</strong></p>
+      <div class="code-block">0x1000: 34    0x1001: 12    0x1002: CD    0x1003: AB</div>
+      <div class="callout callout-tip">
+        <div class="callout-title">💡 Mẹo nhớ nhanh</div>
+        <p><strong>Big Endian</strong> = Big in front = MSB ở trước (ô thấp) = viết như ta đọc.</p>
+        <p><strong>Little Endian</strong> = Little in front = LSB ở trước (ô thấp) = đảo ngược thứ tự byte.</p>
+        <p>Chỉ cần nhớ: BE giữ nguyên, LE đảo byte. Không bao giờ đảo bit trong byte.</p>
+      </div>
+      <div class="result-box"><span class="result-label">Tổng kết:</span>0xABCD1234 → BE: <strong>AB CD 12 34</strong> | LE: <strong>34 12 CD AB</strong></div>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🔄 Mô phỏng lưu trữ Endian trong bộ nhớ</div>
+
+  <div class="tabs" data-tabs="endian" id="tabs-endian">
+    <button class="tab active">Hexa → Bộ nhớ</button>
+    <button class="tab">Thập phân → Bộ nhớ</button>
+  </div>
+
+  <!-- Tab 1: Hex input -->
+  <div class="tab-content active">
+    <p>Nhập số hexa 32-bit (8 chữ số, vd: 04345EDF):</p>
+    <input type="text" id="hex-input-endian" value="04345EDF" pattern="[0-9A-Fa-f]{8}" maxlength="8" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono); text-transform: uppercase;">
+    <button class="btn mt-1" onclick="convertHexEndian()">Hiện bộ nhớ!</button>
+
+    <div id="hex-endian-result" class="mt-2"></div>
+  </div>
+
+  <!-- Tab 2: Decimal input -->
+  <div class="tab-content">
+    <p>Nhập số thập phân (0 đến 4 294 967 295):</p>
+    <input type="number" id="dec-input-endian" value="70541023" min="0" max="4294967295" style="font-size: 1.1rem; padding: 10px;">
+    <button class="btn mt-1" onclick="convertDecEndian()">Hiện bộ nhớ!</button>
+
+    <div id="dec-endian-result" class="mt-2"></div>
+  </div>
+</div>
+
+<script>
+function renderMemoryMap(bytes, baseAddr) {
+  // bytes: array of 4 hex strings (no 0x prefix), baseAddr: number
+  let html = '<div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin: 1em 0;">';
+  for (let i = 0; i < bytes.length; i++) {
+    const addr = (baseAddr + i).toString(16).toUpperCase().padStart(4, '0');
+    html += `
+      <div style="border:2px solid var(--primary); border-radius:8px; padding:10px; min-width:80px; text-align:center; background:white;">
+        <div style="font-size:0.85rem; color:var(--gray-500);">Địa chỉ</div>
+        <div style="font-family:var(--font-mono); font-weight:bold; color:var(--primary-dark);">0x${addr}</div>
+        <div style="margin:8px 0; padding:10px; background:var(--primary-light); border-radius:4px; font-family:var(--font-mono); font-size:1.2rem; font-weight:bold;">0x${bytes[i]}</div>
+        <div style="font-size:0.8rem; color:var(--gray-500);">${i === 0 ? 'ô thấp nhất' : (i === bytes.length-1 ? 'ô cao nhất' : '')}</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+  return html;
+}
+
+function splitIntoBytes(hexStr) {
+  // Pad to 8 chars (32 bit)
+  while (hexStr.length < 8) hexStr = '0' + hexStr;
+  const bytes = [];
+  for (let i = 0; i < 8; i += 2) {
+    bytes.push(hexStr.slice(i, i + 2).toUpperCase());
+  }
+  return bytes; // [MSB, b2, b3, LSB]
+}
+
+function convertHexEndian() {
+  let hexStr = document.getElementById('hex-input-endian').value.trim().toUpperCase();
+  if (!/^[0-9A-F]{8}$/.test(hexStr)) {
+    document.getElementById('hex-endian-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải nhập đúng 8 chữ số hexa (0-9, A-F).</div>';
+    return;
+  }
+
+  const bytes = splitIntoBytes(hexStr);
+  const msb = bytes[0], lsb = bytes[3];
+  const bigEndian = [...bytes];
+  const littleEndian = [...bytes].reverse();
+
+  let html = `<div class="callout callout-theory"><div class="callout-title">📐 Phân tích số 0x${hexStr}</div>`;
+  html += `<p>4 byte theo thứ tự MSB → LSB: <code>${bytes.join(' ')}</code></p>`;
+  html += `<p>MSB = <code>0x${msb}</code>, LSB = <code>0x${lsb}</code></p></div>`;
+
+  html += `<h4 style="text-align:center;">🔵 Big Endian (MSB ở ô thấp nhất)</h4>`;
+  html += renderMemoryMap(bigEndian, 0x1000);
+  html += `<p class="text-center text-primary">Đọc từ 0x1000: ${bigEndian.join(' ')} → giữ nguyên → 0x${hexStr}</p>`;
+
+  html += `<h4 class="mt-3" style="text-align:center;">🔴 Little Endian (LSB ở ô thấp nhất)</h4>`;
+  html += renderMemoryMap(littleEndian, 0x1000);
+  html += `<p class="text-center text-accent">Đọc từ 0x1000: ${littleEndian.join(' ')} → đảo ngược → 0x${hexStr}</p>`;
+
+  html += `<div class="result-box"><span class="result-label">Tóm tắt:</span>0x${hexStr} → BE: <strong>${bigEndian.join(' ')}</strong> | LE: <strong>${littleEndian.join(' ')}</strong></div>`;
+
+  document.getElementById('hex-endian-result').innerHTML = html;
+}
+
+function convertDecEndian() {
+  const dec = parseInt(document.getElementById('dec-input-endian').value);
+  if (isNaN(dec) || dec < 0 || dec > 4294967295) {
+    document.getElementById('dec-endian-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải nhập số trong khoảng [0; 4 294 967 295].</div>';
+    return;
+  }
+
+  // Convert to hex 32-bit
+  let hexStr = dec.toString(16).toUpperCase().padStart(8, '0');
+  const bytes = splitIntoBytes(hexStr);
+
+  let html = `<div class="callout callout-theory"><div class="callout-title">📐 Đổi thập phân → hexa</div>`;
+  html += `<p><strong>Quy trình chia 16 lấy dư (đọc ngược từ dưới lên):</strong></p>`;
+  const steps = NumSys.decToHexSteps(dec);
+  html += '<div class="code-block">';
+  steps.forEach(s => {
+    html += `${s.dividend} : 16 = ${s.quotient} dư ${s.remainder} (${s.hexDigit})\n`;
+  });
+  html += '</div>';
+  html += `<p>→ ${dec}₁₀ = <strong>0x${hexStr}</strong></p></div>`;
+
+  const bigEndian = [...bytes];
+  const littleEndian = [...bytes].reverse();
+
+  html += `<h4 style="text-align:center;">🔵 Big Endian</h4>`;
+  html += renderMemoryMap(bigEndian, 0x1000);
+
+  html += `<h4 class="mt-3" style="text-align:center;">🔴 Little Endian</h4>`;
+  html += renderMemoryMap(littleEndian, 0x1000);
+
+  html += `<div class="result-box"><span class="result-label">Tóm tắt:</span>${dec}₁₀ = 0x${hexStr} → BE: <strong>${bigEndian.join(' ')}</strong> | LE: <strong>${littleEndian.join(' ')}</strong></div>`;
+
+  document.getElementById('dec-endian-result').innerHTML = html;
+}
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Cho số <strong>0xDEADBEEF</strong>. Viết thứ tự byte khi lưu theo Big Endian và Little Endian tại địa chỉ 0x2000.",
+    answer: `Tách 4 byte (MSB → LSB): DE AD BE EF<br>
+    <br>
+    <strong>Big Endian</strong> (giữ nguyên thứ tự):<br>
+    0x2000: DE   0x2001: AD   0x2002: BE   0x2003: EF<br>
+    <br>
+    <strong>Little Endian</strong> (đảo ngược byte):<br>
+    0x2000: EF   0x2001: BE   0x2002: AD   0x2003: DE`
+  },
+  {
+    question: "Khi dump bộ nhớ thấy: <code>0x1000: 78  0x1001: 56  0x1002: 34  0x1003: 12</code>. Nếu máy dùng Little Endian, số gốc là bao nhiêu?",
+    answer: `Little Endian: byte ở ô thấp nhất (0x1000) là LSB.<br>
+    <br>
+    Đọc từ ô thấp → cao: 78 56 34 12<br>
+    Vì LE lưu LSB trước, số gốc (MSB trước) = đảo ngược:<br>
+    → số gốc = 12 34 56 78 = <strong>0x12345678</strong> = 305 419 896₁₀`
+  },
+  {
+    question: "Số 16-bit <strong>0xBEEF</strong>. Viết Big Endian và Little Endian (chỉ 2 byte).",
+    answer: `Tách 2 byte (MSB → LSB): BE EF<br>
+    <br>
+    <strong>Big Endian</strong>:<br>
+    0x1000: BE   0x1001: EF<br>
+    <br>
+    <strong>Little Endian</strong> (đảo 2 byte):<br>
+    0x1000: EF   0x1001: BE<br>
+    <br>
+    Lưu ý: với số 16 bit, LE chỉ đảo 2 byte (không phải 4 byte như 32 bit).`
+  },
+  {
+    question: "Một chương trình C trên máy Intel gửi số <strong>0x12345678</strong> qua mạng TCP/IP. Trình bày các bước convert.",
+    answer: `Máy Intel = Little Endian. Mạng TCP/IP = Big Endian.<br>
+    <br>
+    Bước 1 — Trước khi gửi, gọi <code>htonl(0x12345678)</code>:<br>
+    Host (LE) → Network (BE) → đảo byte → 0x78563412<br>
+    <br>
+    Bước 2 — Trên mạng truyền: byte đi theo thứ tự BE:<br>
+    12 34 56 78 (đúng như người đọc)<br>
+    <br>
+    Bước 3 — Máy nhận (cũng Intel) gọi <code>ntohl(0x12345678)</code>:<br>
+    Network (BE) → Host (LE) → đảo byte → ra lại 0x12345678<br>
+    <br>
+    → Máy nhận được đúng số gốc 0x12345678 ✓<br>
+    <br>
+    <em>Lưu ý: nếu máy nhận là Big Endian (vd PowerPC), ntohl() không đảo gì, vẫn ra đúng số.</em>`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "Trong số 32-bit 0x12345678, byte nào là MSB?",
+    options: ["0x78", "0x56", "0x34", "0x12"],
+    correct: 3,
+    explanation: "MSB (Most Significant Byte) là byte có giá trị cao nhất, viết bên trái nhất. Ở 0x12345678, MSB = 0x12. LSB = 0x78."
+  },
+  {
+    question: "Trong Big Endian, byte nào được đặt ở ô địa chỉ nhỏ nhất?",
+    options: ["LSB (byte thấp)", "MSB (byte cao)", "Bit dấu", "Tùy ý"],
+    correct: 1,
+    explanation: "Big Endian = 'đầu to đi trước' = MSB ở ô địa chỉ nhỏ nhất. Thứ tự byte giống như con người đọc."
+  },
+  {
+    question: "Kiến trúc Intel x86 dùng Endianness nào?",
+    options: ["Big Endian", "Little Endian", "Cả hai tùy chế độ", "Không xác định"],
+    correct: 1,
+    explanation: "Intel x86/x64 dùng Little Endian (LSB ở ô địa chỉ nhỏ). Motorola 68k, PowerPC, SPARC dùng Big Endian."
+  },
+  {
+    question: "Network byte order của TCP/IP là gì?",
+    options: ["Little Endian", "Big Endian", "Tùy thuộc vào máy gửi", "Hybrid Endian"],
+    correct: 1,
+    explanation: "TCP/IP quy định network byte order = Big Endian. Mọi số nguyên đa-byte truyền qua mạng phải convert sang BE trước."
+  },
+  {
+    question: "Số 0xABCD1234 lưu theo Little Endian tại địa chỉ 0x1000. Byte ở ô 0x1001 là?",
+    options: ["0xAB", "0xCD", "0x12", "0x34"],
+    correct: 2,
+    explanation: "LE lưu byte thấp (LSB) ở ô thấp. Tách byte (MSB→LSB): AB CD 12 34. LE đảo ngược → điền vào ô: 0x1000=0x34, 0x1001=0x12, 0x1002=0xCD, 0x1003=0xAB. Vậy ô 0x1001 chứa 0x12."
+  },
+  {
+    question: "Hàm htonl() trên máy Little Endian sẽ làm gì?",
+    options: ["Không làm gì", "Đảo ngược thứ tự byte", "Đảo bit trong mỗi byte", "Thêm bit dấu"],
+    correct: 1,
+    explanation: "htons/htonl convert từ host order sang network order (Big Endian). Trên máy LE, hàm này đảo ngược thứ tự byte. Trên máy BE, hàm không làm gì."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn</div>
+  <p>Đây là cách GIÁM KHẢO MUỐN THẤY. Học theo mẫu này!</p>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Cho số thập phân 70 541 023. Hãy đổi sang hexa và viết sơ đồ lưu trữ theo Big Endian và Little Endian tại địa chỉ 0x1000.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải:</strong>
+
+<strong>Bước 1 — Đổi 70 541 023 sang hexa (chia 16 lấy dư):</strong>
+70541023 : 16 = 4408813 dư 15 (F)
+4408813  : 16 = 275550  dư 13 (D)
+275550   : 16 = 17221   dư 14 (E)
+17221    : 16 = 1076    dư  5 (5)
+1076     : 16 = 67      dư  4 (4)
+67       : 16 = 4       dư  3 (3)
+4        : 16 = 0       dư  4 (4)
+
+Đọc dư từ dưới lên: → 70 541 023₁₀ = 0x04345EDF
+
+<strong>Bước 2 — Tách thành 4 byte (MSB → LSB):</strong>
+0x04345EDF = | 04 | 34 | 5E | DF |
+              ↑ MSB          ↑ LSB
+
+<strong>Bước 3 — Big Endian (MSB ở ô thấp nhất):</strong>
+Địa chỉ:    0x1000   0x1001   0x1002   0x1003
+Giá trị:    0x04     0x34     0x5E     0xDF
+           ↑ MSB                       ↑ LSB
+
+<strong>Bước 4 — Little Endian (LSB ở ô thấp nhất — đảo byte):</strong>
+Địa chỉ:    0x1000   0x1001   0x1002   0x1003
+Giá trị:    0xDF     0x5E     0x34     0x04
+           ↑ LSB                       ↑ MSB
+
+<strong>Kết luận:</strong>
+70 541 023₁₀ = 0x04345EDF
+- Big Endian:    04 34 5E DF
+- Little Endian: DF 5E 34 04</pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn ghi rõ "MSB" và "LSB" trên sơ đồ</strong> — chứng tỏ bạn hiểu byte nào là byte cao, byte nào là byte thấp. Giám khảo rất thích.</li>
+    <li><strong>Vẽ sơ đồ dạng bảng với địa chỉ rõ ràng</strong> — không chỉ viết "04 34 5E DF" trên một dòng. Phải có "0x1000, 0x1001..." để thấy vị trí từng byte.</li>
+    <li><strong>Nêu rõ quy tắc trước khi điền byte</strong> — vd "Big Endian: MSB ở ô thấp nhất, nên điền 0x04 vào 0x1000". Giúp giám khảo theo dõi logic của bạn.</li>
+    <li><strong>Luôn có cả BE và LE song song</strong> — nếu đề chỉ hỏi 1 loại, vẫn nên làm thêm loại kia để đối chiếu (được điểm cộng).</li>
+    <li><strong>Kết luận bằng 1 dòng tóm tắt</strong> — vd "BE: 04 34 5E DF | LE: DF 5E 34 04". Giám khảo tìm đáp án nhanh.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ <strong>Đảo bit trong byte thay vì đảo byte</strong> — vd viết 0x04 thành 0x20 (đảo bit). Sai hoàn toàn, LE chỉ đảo byte.</li>
+    <li>❌ <strong>Nhầm MSB với LSB</strong> — ghi 0x04 là LSB vì "0x04 nhỏ". Sai! MSB/LSB xét theo <strong>vị trí</strong> trong số, không phải theo giá trị số.</li>
+    <li>❌ <strong>Quên đơn vị địa chỉ</strong> — viết "ô 1, ô 2, ô 3, ô 4" mà không ghi 0x1000, 0x1001... Mất điểm vì thiếu thông tin.</li>
+    <li>❌ <strong>Đảo byte cho số 16 bit như số 32 bit</strong> — số 16 bit chỉ có 2 byte, đảo cũng chỉ 2 byte. Đừng "pad" thêm 0 rồi đảo 4 byte.</li>
+    <li>❌ <strong>Nhầm hton luôn đảo byte</strong> — trên máy BE, hton không làm gì. Code đúng là luôn gọi hton/ntoh bất kể máy nào.</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>MSB</strong> = byte cao nhất (bên trái). <strong>LSB</strong> = byte thấp nhất (bên phải).</li>
+    <li><strong>Big Endian</strong>: MSB ở ô địa chỉ nhỏ → giữ nguyên thứ tự như người đọc.</li>
+    <li><strong>Little Endian</strong>: LSB ở ô địa chỉ nhỏ → đảo ngược thứ tự byte.</li>
+    <li>LE <strong>chỉ đảo byte</strong>, không đảo bit trong byte.</li>
+    <li>Intel x86/x64 dùng <strong>Little Endian</strong>.</li>
+    <li>Motorola, PowerPC, SPARC, mạng TCP/IP dùng <strong>Big Endian</strong>.</li>
+    <li><strong>Network byte order = Big Endian</strong>. Dùng <code>htonl/htons</code> trước khi gửi, <code>ntohl/ntohs</code> khi nhận.</li>
+    <li>Trên máy BE, <code>hton/ntoh</code> là no-op (không đảo). Trên máy LE, chúng đảo byte.</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Mẹo thi nhanh</div>
+  <p>Khi gặp đề "viết sơ đồ BE/LE", làm theo quy trình 4 bước:</p>
+  <table>
+    <tr><th>Bước</th><th>Hành động</th></tr>
+    <tr><td>1</td><td>Đổi số sang hexa, pad 0 cho đủ 8 chữ số (32 bit) hoặc 4 chữ số (16 bit)</td></tr>
+    <tr><td>2</td><td>Tách thành byte (mỗi 2 chữ số hexa = 1 byte), ghi rõ MSB và LSB</td></tr>
+    <tr><td>3</td><td>BE: điền tuần tự MSB → LSB vào các ô tăng dần địa chỉ</td></tr>
+    <tr><td>4</td><td>LE: đảo ngược thứ tự byte, điền vào các ô tăng dần địa chỉ</td></tr>
+  </table>
+  <p><strong>Câu thần chú:</strong> "Big Endian giữ nguyên, Little Endian đảo byte". Nhớ câu này là giải được 90% bài tập.</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Cẩn thận với dump bộ nhớ</div>
+  <p>Khi đọc dump bộ nhớ của máy Little Endian (Intel), bạn sẽ thấy byte <strong>theo thứ tự ngược</strong> với cách con người viết số. Vd số <code>0x12345678</code> trên máy Intel sẽ dump ra là <code>78 56 34 12</code>. Phải đảo ngược lại mới ra số gốc. Đây là nguồn gốc của rất nhiều bug debug mất thời gian!</p>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Bảng tra nhanh — BE vs LE cho các số 32-bit phổ biến</div>
+  <table>
+    <tr><th>Số hexa</th><th>MSB→LSB</th><th>Big Endian</th><th>Little Endian</th></tr>
+    <tr><td>0x00000000</td><td>00 00 00 00</td><td>00 00 00 00</td><td>00 00 00 00</td></tr>
+    <tr><td>0x00000001</td><td>00 00 00 01</td><td>00 00 00 01</td><td>01 00 00 00</td></tr>
+    <tr><td>0x0000FFFF</td><td>00 00 FF FF</td><td>00 00 FF FF</td><td>FF FF 00 00</td></tr>
+    <tr><td>0x12345678</td><td>12 34 56 78</td><td>12 34 56 78</td><td>78 56 34 12</td></tr>
+    <tr><td>0xABCD1234</td><td>AB CD 12 34</td><td>AB CD 12 34</td><td>34 12 CD AB</td></tr>
+    <tr><td>0xDEADBEEF</td><td>DE AD BE EF</td><td>DE AD BE EF</td><td>EF BE AD DE</td></tr>
+    <tr><td>0xFFFFFFFF</td><td>FF FF FF FF</td><td>FF FF FF FF</td><td>FF FF FF FF</td></tr>
+  </table>
+  <p><strong>Nhận xét:</strong> 0x00000000 và 0xFFFFFFFF có BE = LE (vì tất cả byte giống nhau). Các số khác thì LE luôn là BE đọc ngược lại.</p>
+  <p><strong>Mẹo nhớ nhanh:</strong> Số <code>0xDEADBEEF</code> trên máy Intel dump ra là <code>EF BE AD DE</code> — đọc ngược lại ta có "DE AD BE EF" → nghe như "dead beef" (thịt bò chết). Đây là một trong những "magic number" kinh điển mà lập trình viên dùng để debug bộ nhớ!</p>
+</div>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Bi-Endian — CPU hiện đại chọn được cả hai</div>
+  <p>Một số kiến trúc CPU hiện đại như <strong>ARM, PowerPC, IA-64 (Itanium)</strong> hỗ trợ <strong>cả Big và Little Endian</strong>, gọi là <em>Bi-Endian</em>. Hệ điều hành chọn chế độ lúc boot. Vd:</p>
+  <ul style="padding-left: 20px;">
+    <li>ARM trên điện thoại Android/iPhone: thường chạy LE (cho tương thích x86).</li>
+    <li>ARM trên một số thiết bị nhúng: có thể chạy BE.</li>
+    <li>PowerPC cũ trên máy Mac: chạy BE. PowerPC mới trên server: có thể LE.</li>
+  </ul>
+  <p>Điều này giải thích vì sao khi viết code C, ta <strong>không bao giờ được giả định</strong> Endianness của máy — luôn phải dùng <code>htonl/htons/ntohl/ntohs</code> khi truyền dữ liệu qua mạng hoặc ghi file nhị phân.</p>
+</div>
+
+<div class="nav-bottom">
+  <a href="02-bu-2.html" class="btn btn-ghost">← Bài 2: Số bù 2</a>
+  <a href="04-ieee754-single.html" class="btn">Bài 4: IEEE 754 →</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

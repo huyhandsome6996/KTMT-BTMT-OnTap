@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 2: Số bù 2 (Two's Complement) - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 2: Số bù 2 (Two's Complement)</strong>
+  <span>2/14</span>
+</div>
+
+<h1>Bài 2: Số bù 2 (Two's Complement)</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Máy tính không có dấu "−" — vậy nó lưu số âm thế nào? Bài này giải thích chi tiết phương pháp "bù 2" — tiêu chuẩn dùng trong mọi CPU hiện đại.
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Ý tưởng cốt lõi</div>
+  <p>Trong 8 bit ta có 256 tổ hợp (00000000 đến 11111111). Để vừa biểu diễn được số <strong>dương</strong> vừa số <strong>âm</strong>, người ta "chia đôi":</p>
+  <ul style="padding-left: 20px;">
+    <li>Nửa đầu (bit đầu = 0): biểu diễn số dương và số 0.</li>
+    <li>Nửa sau (bit đầu = 1): biểu diễn số âm.</li>
+  </ul>
+  <p>Bit đầu tiên (bên trái) gọi là <strong>MSB (Most Significant Bit)</strong> làm nhiệm vụ <strong>bit dấu</strong>: <strong>0 = dương, 1 = âm</strong>.</p>
+</div>
+
+<h3>1. Vì sao cần "bù 2"?</h3>
+
+<p>Có 3 cách cổ điển để biểu diễn số âm trong máy tính:</p>
+
+<table>
+  <tr>
+    <th>Phương pháp</th>
+    <th>Cách làm</th>
+    <th>Nhược điểm</th>
+  </tr>
+  <tr>
+    <td><strong>Dấu lượng</strong></td>
+    <td>1 bit dấu + 7 bit giá trị tuyệt đối (vd −5 = 10000101)</td>
+    <td>Có hai số 0 (+0 và −0); cộng trừ phức tạp</td>
+  </tr>
+  <tr>
+    <td><strong>Bù 1</strong></td>
+    <td>Đảo tất cả các bit (vd −5 = 11111010)</td>
+    <td>Vẫn còn hai số 0 (00000000 và 11111111)</td>
+  </tr>
+  <tr>
+    <td><strong>Bù 2</strong> ✅</td>
+    <td>Bù 1 rồi cộng 1</td>
+    <td>Không có — đây là <strong>tiêu chuẩn</strong> dùng trong CPU</td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Tại sao lại "+1" sau khi đảo bit?</div>
+  <p>Vì <strong>bù 1 có hai số 0</strong>: <code>00000000</code> (+0) và <code>11111111</code> (−0). Điều này gây lãng phí một tổ hợp và làm logic phần cứng phức tạp (phải xử lý hai trường hợp 0).</p>
+  <p>Khi cộng thêm 1, <code>11111111 + 1 = 1 00000000</code> (bit thứ 9 bị tràn và bị bỏ đi) → chỉ còn <code>00000000</code>. Nhờ đó <strong>số 0 chỉ có một biểu diễn duy nhất</strong>, và dải số âm mở rộng thêm một giá trị (với 8 bit: được −128 thay vì chỉ đến −127).</p>
+</div>
+
+<h3>2. Quy tắc đổi số thập phân → bù 2 (n bit)</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Quy trình 3 bước</div>
+  <p><strong>Cho số nguyên X cần lưu bằng n bit bù 2.</strong></p>
+  <ol style="padding-left: 20px;">
+    <li><strong>Kiểm tra phạm vi:</strong> X phải thuộc <code>[−2^(n−1); 2^(n−1) − 1]</code>. Nếu ngoài phạm vi → không biểu diễn được.</li>
+    <li><strong>Nếu X ≥ 0:</strong> đổi X sang nhị phân, thêm số 0 phía trước cho đủ n bit (bit đầu = 0).</li>
+    <li><strong>Nếu X &lt; 0:</strong>
+      <ul>
+        <li>Lấy giá trị tuyệt đối |X|, đổi sang nhị phân n bit.</li>
+        <li><strong>Bù 1:</strong> đảo tất cả bit (0→1, 1→0).</li>
+        <li><strong>Bù 2:</strong> lấy kết quả bù 1 cộng với 1.</li>
+      </ul>
+    </li>
+  </ol>
+  <p>Tóm gọn: $$X_{\text{âm}} = \text{NOT}(|X|) + 1$$</p>
+</div>
+
+<h3>3. Phạm vi biểu diễn</h3>
+
+<p>Với n bit bù 2, phạm vi giá trị là:</p>
+<p>$$\boxed{\;X \in \left[-2^{n-1},\; 2^{n-1} - 1\right]\;}$$</p>
+
+<table>
+  <tr>
+    <th>Số bit</th>
+    <th>Giá trị nhỏ nhất</th>
+    <th>Giá trị lớn nhất</th>
+    <th>Số lượng giá trị</th>
+  </tr>
+  <tr><td><strong>4 bit</strong></td><td>−8</td><td>+7</td><td>16</td></tr>
+  <tr><td><strong>8 bit</strong></td><td>−128</td><td>+127</td><td>256</td></tr>
+  <tr><td><strong>16 bit</strong></td><td>−32 768</td><td>+32 767</td><td>65 536</td></tr>
+  <tr><td><strong>32 bit</strong></td><td>−2 147 483 648</td><td>+2 147 483 647</td><td>≈ 4,3 tỷ</td></tr>
+</table>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Mẹo nhớ dải số</div>
+  <p>Về phía <strong>dương</strong>: lớn nhất = $2^{n-1} - 1$ (trừ 1 vì có số 0 chiếm một giá trị).</p>
+  <p>Về phía <strong>âm</strong>: nhỏ nhất = $-2^{n-1}$ (không trừ 1 vì 0 đã được tính về phía dương).</p>
+  <p><strong>Asymmetry:</strong> dải âm nhiều hơn dải dương đúng 1 giá trị. Đó là "tiền" trả cho việc số 0 chỉ có một biểu diễn.</p>
+</div>
+
+<h3>4. Đổi ngược: từ bù 2 → thập phân (2 cách)</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Cách 1 — Đảo bit + cộng 1 (phổ biến, dễ nhớ)</div>
+  <ol style="padding-left: 20px;">
+    <li>Nhìn bit đầu (MSB). Nếu = 0 → số dương → đổi nhị phân sang thập phân bình thường.</li>
+    <li>Nếu MSB = 1 → số âm. Lấy <strong>bù 2</strong> của chuỗi bit (đảo tất cả + cộng 1) để ra giá trị tuyệt đối.</li>
+    <li>Thêm dấu "−" trước kết quả.</li>
+  </ol>
+  <p><strong>Tại sao cách này đúng?</strong> Vì bù 2 của bù 2 = số ban đầu: $\text{NOT}(\text{NOT}(X)+1) + 1 = X$. Nên nếu bit ban đầu là số âm (đã được bù 2 từ |X|), ta bù 2 lần nữa sẽ quay lại |X|.</p>
+</div>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Cách 2 — Dùng công thức trực tiếp</div>
+  <p>Xét bit $a_{n-1} a_{n-2} \ldots a_1 a_0$ (vị trí $a_{n-1}$ là MSB), giá trị thập phân là:</p>
+  <p>$$X = -a_{n-1} \cdot 2^{n-1} + \sum_{i=0}^{n-2} a_i \cdot 2^{i}$$</p>
+  <p><strong>Ý nghĩa công thức:</strong> tất cả các bit đều có trọng số dương $2^i$ như bình thường, <strong>duy nhất bit cao nhất (MSB) có trọng số âm</strong> $-2^{n-1}$. Đó chính là lý do MSB = 1 thì cả số mang dấu âm (vì bit đó có giá trị tuyệt đối lớn nhất).</p>
+  <p>Ví dụ với 8 bit: <code>10110010</code></p>
+  <ul>
+    <li>Trọng số MSB = $-2^7 = -128$</li>
+    <li>Các bit còn lại: $0\cdot 64 + 1\cdot 32 + 1\cdot 16 + 0\cdot 8 + 0\cdot 4 + 1\cdot 2 + 0\cdot 1 = 50$</li>
+    <li>→ $X = -128 + 50 = -78$</li>
+  </ul>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1</div>
+  <p>Nhiều sinh viên nhầm rằng "MSB = 1 thì chỉ cần đổi phần còn lại sang thập phân rồi thêm dấu −". <strong>SAI HOÀN TOÀN!</strong> Đó là cách của "dấu lượng", không phải bù 2.</p>
+  <p>Phải <strong>đảo bit + 1 rồi mới thêm dấu −</strong>, hoặc dùng công thức có trọng số âm cho MSB.</p>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Đề bài</div>
+  <p>Hãy thực hiện các đổi sau bằng số bù 2 (8 bit):</p>
+  <ul style="padding-left: 20px;">
+    <li>a) Đổi −45 sang bù 2</li>
+    <li>b) Đổi −100 sang bù 2</li>
+    <li>c) Đổi <code>10110010₂</code> (bù 2, 8 bit) về thập phân (Cách 1)</li>
+    <li>d) Lại bài c), nhưng dùng công thức (Cách 2)</li>
+  </ul>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+const steps = [
+  {
+    title: "Bước 1 — Đổi −45 sang bù 2 (8 bit)",
+    content: `
+      <p><strong>Bước 1a — Kiểm tra phạm vi:</strong> 8 bit bù 2 có phạm vi [−128; 127]. −45 nằm trong khoảng này → biểu diễn được.</p>
+      <p><strong>Bước 1b — Lấy giá trị tuyệt đối và đổi sang nhị phân 8 bit:</strong> |−45| = 45. Chia 2 lấy dư (như Bài 1):</p>
+      <div class="code-block">45 : 2 = 22 dư 1
+22 : 2 = 11 dư 0
+11 : 2 =  5 dư 1
+ 5 : 2 =  2 dư 1
+ 2 : 2 =  1 dư 0
+ 1 : 2 =  0 dư 1
+→ 45₁₀ = 101101₂  →  pad 0 cho đủ 8 bit: <strong>00101101₂</strong></div>
+      <p><strong>Bước 1c — Bù 1 (đảo tất cả bit):</strong></p>
+      <div class="bit-row">
+        <div class="bit zero">0</div><div class="bit zero">0</div><div class="bit one">1</div><div class="bit zero">0</div>
+        <div class="bit one">1</div><div class="bit zero">1</div><div class="bit zero">0</div><div class="bit one">1</div>
+      </div>
+      <p style="text-align:center">↓ đảo bit ↓</p>
+      <div class="bit-row">
+        <div class="bit one">1</div><div class="bit one">1</div><div class="bit zero">0</div><div class="bit one">1</div>
+        <div class="bit zero">0</div><div class="bit one">1</div><div class="bit one">1</div><div class="bit zero">0</div>
+      </div>
+      <p>→ Bù 1 = <code>11010010₂</code></p>
+      <p><strong>Bước 1d — Bù 2 = Bù 1 + 1:</strong></p>
+      <div class="code-block">  11010010
++          1
+──────────
+  11010011</div>
+      <div class="result-box"><span class="result-label">Kết quả:</span>−45₁₀ = <strong>11010011₂</strong> (bù 2, 8 bit)</div>
+    `
+  },
+  {
+    title: "Bước 2 — Đổi −100 sang bù 2 (8 bit)",
+    content: `
+      <p><strong>Kiểm tra phạm vi:</strong> −100 ∈ [−128; 127] → OK.</p>
+      <p><strong>Đổi |−100| = 100 sang nhị phân 8 bit:</strong></p>
+      <div class="code-block">100 : 2 = 50 dư 0
+ 50 : 2 = 25 dư 0
+ 25 : 2 = 12 dư 1
+ 12 : 2 =  6 dư 0
+  6 : 2 =  3 dư 0
+  3 : 2 =  1 dư 1
+  1 : 2 =  0 dư 1
+→ 100₁₀ = 1100100₂ → pad 0 cho đủ 8 bit: <strong>01100100₂</strong></div>
+      <p><strong>Bù 1 — đảo bit:</strong> <code>01100100</code> → <code>10011011</code></p>
+      <p><strong>Bù 2 — cộng 1:</strong></p>
+      <div class="code-block">  10011011
++          1
+──────────
+  10011100</div>
+      <div class="callout callout-tip">
+        <div class="callout-title">💡 Quan sát</div>
+        <p>MSB = 1 → đúng là số âm ✓. Nếu bạn cộng 1 ra kết quả có MSB = 0 thì chắc chắn đã làm sai (trừ trường hợp −128).</p>
+      </div>
+      <div class="result-box"><span class="result-label">Kết quả:</span>−100₁₀ = <strong>10011100₂</strong> (bù 2, 8 bit)</div>
+    `
+  },
+  {
+    title: "Bước 3 — Đổi bù 2 10110010₂ về thập phân (Cách 1: đảo + 1)",
+    content: `
+      <p><strong>Nhìn MSB:</strong> bit đầu = 1 → đây là số âm. Cần tìm giá trị tuyệt đối rồi thêm dấu −.</p>
+      <p><strong>Bước 3a — Bù 1 (đảo bit):</strong></p>
+      <div class="code-block">10110010  →  NOT  →  01001101</div>
+      <p><strong>Bước 3b — Bù 2 (cộng 1):</strong></p>
+      <div class="code-block">  01001101
++          1
+──────────
+  01001110</div>
+      <p><strong>Bước 3c — Đổi 01001110₂ sang thập phân:</strong></p>
+      <div class="code-block">01001110₂ = 0·128 + 1·64 + 0·32 + 0·16 + 1·8 + 1·4 + 1·2 + 0·1
+         = 64 + 8 + 4 + 2
+         = 78</div>
+      <p><strong>Bước 3d — Thêm dấu − (vì MSB ban đầu = 1):</strong></p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>10110010₂ (bù 2) = <strong>−78₁₀</strong></div>
+      <p><strong>Ý nghĩa bước "+1":</strong> Vì số ban đầu đã được cộng 1 khi tạo bù 2, nên khi "giải mã" ta cũng phải cộng 1 để bù lại. Đó là tính chất đối xứng: bù 2 của bù 2 = gốc.</p>
+    `
+  },
+  {
+    title: "Bước 4 — Cùng bài toán nhưng dùng công thức (Cách 2)",
+    content: `
+      <p>Áp dụng công thức $X = -a_7 \cdot 2^7 + \sum_{i=0}^{6} a_i \cdot 2^i$ cho chuỗi <code>10110010</code>.</p>
+      <table>
+        <tr><th>Bit</th><th>1</th><th>0</th><th>1</th><th>1</th><th>0</th><th>0</th><th>1</th><th>0</th></tr>
+        <tr><th>Vị trí i</th><td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr>
+        <tr><th>2^i</th><td>128</td><td>64</td><td>32</td><td>16</td><td>8</td><td>4</td><td>2</td><td>1</td></tr>
+        <tr><th>Đóng góp</th><td>−128</td><td>0</td><td>+32</td><td>+16</td><td>0</td><td>0</td><td>+2</td><td>0</td></tr>
+      </table>
+      <div class="code-block">X = −128 + 0 + 32 + 16 + 0 + 0 + 2 + 0
+  = −128 + 50
+  = −78</div>
+      <div class="result-box"><span class="result-label">Kết quả:</span>X = <strong>−78₁₀</strong> — khớp với Cách 1 ✓</div>
+      <p><strong>Nhận xét:</strong> Hai cách cho cùng kết quả. Cách 2 nhanh hơn khi tính nhẩm, nhưng dễ nhầm dấu của $2^{n-1}$. Cách 1 an toàn hơn cho người mới học.</p>
+    `
+  },
+  {
+    title: "Bước 5 — Trường hợp đặc biệt: −128 (giới hạn dưới của 8 bit)",
+    content: `
+      <p>−128 là số âm nhỏ nhất có thể biểu diễn trong 8 bit bù 2. Hãy thử đổi theo quy trình:</p>
+      <p><strong>Bước 5a — |−128| = 128. Đổi sang nhị phân 8 bit:</strong></p>
+      <div class="code-block">128 = 10000000₂  ← đã là 8 bit, không cần pad</div>
+      <p><strong>Bước 5b — Bù 1 (đảo bit):</strong></p>
+      <div class="code-block">10000000  →  NOT  →  01111111</div>
+      <p><strong>Bước 5c — Bù 2 (cộng 1):</strong></p>
+      <div class="code-block">  01111111
++          1
+──────────
+  10000000</div>
+      <p>Kết quả: <strong>−128₁₀ = 10000000₂</strong>.</p>
+      <div class="callout callout-warn">
+        <div class="callout-title">⚠️ Quan sát lạ</div>
+        <p>Bù 2 của 128 (8 bit) lại chính là 10000000 — giống hệt |128| ! Đây không phải lỗi, mà là <strong>tính chất tất yếu</strong> của giới hạn dưới: không có số dương 128 trong 8 bit bù 2 (max dương là 127). Bit pattern <code>10000000</code> được "tái sử dụng" để biểu diễn −128.</p>
+      </div>
+      <p><strong>Đổi ngược lại kiểm tra:</strong> áp dụng công thức $X = -1 \cdot 128 + 0 = -128$ ✓.</p>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🔄 Máy đổi số bù 2 tương tác</div>
+
+  <div class="tabs" data-tabs="twos-comp" id="tabs-twos-comp">
+    <button class="tab active">Dec → Bù 2</button>
+    <button class="tab">Bù 2 → Dec</button>
+    <button class="tab">Phạm vi theo số bit</button>
+  </div>
+
+  <!-- Tab 1: Dec -> Bu 2 -->
+  <div class="tab-content active">
+    <p>Nhập số thập phân từ −128 đến 127 (8 bit):</p>
+    <input type="number" id="dec-input-2" value="-45" min="-128" max="127" style="font-size: 1.1rem; padding: 10px;">
+    <button class="btn mt-1" onclick="convertDecToTwos()">Đổi sang bù 2!</button>
+
+    <div id="dec2-steps" class="mt-2"></div>
+    <div id="dec2-result"></div>
+  </div>
+
+  <!-- Tab 2: Bu 2 -> Dec -->
+  <div class="tab-content">
+    <p>Nhập chuỗi 8 bit bù 2 (chỉ 0 và 1):</p>
+    <input type="text" id="bin-input-2" value="10110010" pattern="[01]{8}" maxlength="8" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono);">
+    <button class="btn mt-1" onclick="convertTwosToDec()">Đổi sang thập phân!</button>
+
+    <div id="bin2-steps" class="mt-2"></div>
+    <div id="bin2-result"></div>
+  </div>
+
+  <!-- Tab 3: Range -->
+  <div class="tab-content">
+    <p>Chọn số bit (4 / 8 / 16) để xem phạm vi thay đổi:</p>
+    <input type="range" id="bits-slider" min="4" max="16" step="4" value="8" oninput="updateRange()">
+    <p>Số bit đã chọn: <strong id="bits-display">8</strong></p>
+
+    <div id="range-display"></div>
+  </div>
+</div>
+
+<script>
+function convertDecToTwos() {
+  const n = parseInt(document.getElementById('dec-input-2').value);
+  if (isNaN(n) || n < -128 || n > 127) {
+    document.getElementById('dec2-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải nhập số nguyên trong khoảng [−128; 127] cho 8 bit bù 2.</div>';
+    document.getElementById('dec2-steps').innerHTML = '';
+    return;
+  }
+
+  let html = '';
+
+  if (n >= 0) {
+    const bin = n.toString(2).padStart(8, '0');
+    html += '<p><strong>Số dương → không cần bù.</strong> Chỉ cần đổi sang nhị phân và pad 0 cho đủ 8 bit.</p>';
+    html += '<div class="code-block">' + n + '₁₀ = ' + n.toString(2) + '₂ → pad: ' + bin + '₂</div>';
+    const bitsEl = Bit.renderBits(bin, { labels: true });
+    html += '<div id="bits-pos"></div>';
+    document.getElementById('dec2-steps').innerHTML = html;
+    document.getElementById('bits-pos').appendChild(bitsEl);
+    document.getElementById('dec2-result').innerHTML = '<div class="result-box"><span class="result-label">Kết quả:</span>' + n + '₁₀ = <strong>' + bin + '₂</strong> (MSB = 0 → dương ✓)</div>';
+  } else {
+    const absBin = Math.abs(n).toString(2).padStart(8, '0');
+    const onesComp = Bit.invert(absBin);
+    const twosComp = Bit.twosComplement(absBin);
+
+    html += '<p><strong>Bước 1 — Lấy giá trị tuyệt đối và đổi sang 8 bit:</strong></p>';
+    html += '<div class="code-block">|' + n + '| = ' + Math.abs(n) + ' → ' + absBin + '₂</div>';
+    html += '<div id="bits-step1"></div>';
+
+    html += '<p class="mt-2"><strong>Bước 2 — Bù 1: đảo tất cả bit</strong></p>';
+    html += '<div id="bits-step2"></div>';
+
+    html += '<p class="mt-2"><strong>Bước 3 — Bù 2: cộng 1 vào bù 1</strong></p>';
+    html += '<div class="code-block">  ' + onesComp + '<br>+          1<br>──────────<br>  ' + twosComp + '</div>';
+    html += '<div id="bits-step3"></div>';
+
+    document.getElementById('dec2-steps').innerHTML = html;
+    document.getElementById('bits-step1').appendChild(Bit.renderBits(absBin, { labels: true }));
+    document.getElementById('bits-step2').appendChild(Bit.renderBits(onesComp, { labels: true, highlight: [0,1,2,3,4,5,6,7] }));
+    document.getElementById('bits-step3').appendChild(Bit.renderBits(twosComp, { labels: true, highlight: [0] }));
+
+    document.getElementById('dec2-result').innerHTML = '<div class="result-box"><span class="result-label">Kết quả:</span>' + n + '₁₀ = <strong>' + twosComp + '₂</strong> (MSB = 1 → âm ✓)</div>';
+  }
+}
+
+function convertTwosToDec() {
+  const binStr = document.getElementById('bin-input-2').value.trim();
+  if (!/^[01]{8}$/.test(binStr)) {
+    document.getElementById('bin2-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải nhập đúng 8 ký tự 0 hoặc 1.</div>';
+    document.getElementById('bin2-steps').innerHTML = '';
+    return;
+  }
+
+  let html = '<p><strong>Bit ban đầu:</strong></p>';
+  html += '<div id="bits-input"></div>';
+
+  if (binStr[0] === '0') {
+    const dec = parseInt(binStr, 2);
+    html += '<p class="mt-2"><strong>MSB = 0 → số dương.</strong> Đổi nhị phân sang thập phân bình thường:</p>';
+    html += '<div class="code-block">' + binStr + '₂ = ' + dec + '₁₀</div>';
+    document.getElementById('bin2-steps').innerHTML = html;
+    document.getElementById('bits-input').appendChild(Bit.renderBits(binStr, { labels: true, highlight: [0] }));
+    document.getElementById('bin2-result').innerHTML = '<div class="result-box"><span class="result-label">Kết quả:</span>' + binStr + '₂ = <strong>' + dec + '₁₀</strong> (số dương)</div>';
+  } else {
+    const inverted = Bit.invert(binStr);
+    const twos = Bit.twosComplement(binStr);
+    const absDec = parseInt(twos, 2);
+
+    html += '<p class="mt-2"><strong>MSB = 1 → số âm. Áp dụng Cách 1 (đảo + 1) để tìm giá trị tuyệt đối.</strong></p>';
+    html += '<p><strong>Bước 1 — Bù 1 (đảo bit):</strong></p>';
+    html += '<div id="bits-inv"></div>';
+    html += '<p class="mt-2"><strong>Bước 2 — Bù 2 (cộng 1):</strong></p>';
+    html += '<div class="code-block">  ' + inverted + '<br>+          1<br>──────────<br>  ' + twos + '</div>';
+    html += '<div id="bits-twos"></div>';
+    html += '<p class="mt-2"><strong>Bước 3 — Đổi ' + twos + '₂ sang thập phân:</strong></p>';
+    html += '<div class="code-block">' + twos + '₂ = ' + absDec + '₁₀</div>';
+    html += '<p class="mt-2"><strong>Bước 4 — Thêm dấu − vì MSB = 1:</strong></p>';
+
+    document.getElementById('bin2-steps').innerHTML = html;
+    document.getElementById('bits-input').appendChild(Bit.renderBits(binStr, { labels: true, highlight: [0] }));
+    document.getElementById('bits-inv').appendChild(Bit.renderBits(inverted, { labels: true }));
+    document.getElementById('bits-twos').appendChild(Bit.renderBits(twos, { labels: true, highlight: [0] }));
+    document.getElementById('bin2-result').innerHTML = '<div class="result-box"><span class="result-label">Kết quả:</span>' + binStr + '₂ = <strong>−' + absDec + '₁₀</strong></div>';
+  }
+}
+
+function updateRange() {
+  const bits = parseInt(document.getElementById('bits-slider').value);
+  document.getElementById('bits-display').textContent = bits;
+  const min = -Math.pow(2, bits - 1);
+  const max = Math.pow(2, bits - 1) - 1;
+  const count = Math.pow(2, bits);
+
+  let html = '<div class="callout callout-theory"><div class="callout-title">📐 Phạm vi bù 2 với ' + bits + ' bit</div>';
+  html += '<p>Giá trị nhỏ nhất: <strong>' + min + '</strong> (= −2^' + (bits-1) + ')</p>';
+  html += '<p>Giá trị lớn nhất: <strong>+' + max + '</strong> (= 2^' + (bits-1) + ' − 1)</p>';
+  html += '<p>Tổng số giá trị biểu diễn được: <strong>' + count + '</strong></p>';
+  html += '<p>Bit mẫu cho min: <code>' + '1' + '0'.repeat(bits-1) + '₂ = ' + min + '</code></p>';
+  html += '<p>Bit mẫu cho max: <code>0' + '1'.repeat(bits-1) + '₂ = +' + max + '</code></p>';
+  html += '<p>Bit mẫu cho 0:   <code>' + '0'.repeat(bits) + '₂ = 0</code> (duy nhất!)</p>';
+  html += '</div>';
+
+  // Visual range bar
+  html += '<div class="progress-bar mt-2"><div class="progress-bar-fill" style="width: 50%;"></div></div>';
+  html += '<p class="text-center text-primary"><small>' + min + ' ← 0 → +' + max + '</small></p>';
+
+  document.getElementById('range-display').innerHTML = html;
+}
+
+// Init range on load
+updateRange();
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Đổi <strong>−27₁₀</strong> sang bù 2 (8 bit).",
+    answer: `Bước 1: |−27| = 27 → nhị phân 8 bit<br>
+    27 = 16 + 8 + 2 + 1 = 00011011₂<br>
+    <br>
+    Bước 2 — Bù 1 (đảo): 00011011 → 11100100<br>
+    <br>
+    Bước 3 — Bù 2 (+1):<br>
+      11100100<br>
+    +         1<br>
+    ──────────<br>
+      11100101<br>
+    <br>
+    → −27₁₀ = <strong>11100101₂</strong>`
+  },
+  {
+    question: "Đổi bù 2 <strong>11111111₂</strong> (8 bit) về thập phân.",
+    answer: `MSB = 1 → số âm.<br>
+    Cách 1 — Đảo + 1:<br>
+    11111111 → NOT → 00000000<br>
+    00000000 + 1 = 00000001 = 1<br>
+    → giá trị tuyệt đối = 1, vậy số gốc = −1<br>
+    <br>
+    Cách 2 — Công thức:<br>
+    X = −1·128 + 1·64 + 1·32 + 1·16 + 1·8 + 1·4 + 1·2 + 1·1<br>
+      = −128 + (64+32+16+8+4+2+1)<br>
+      = −128 + 127 = −1<br>
+    <br>
+    → <strong>−1₁₀</strong> (đây là số âm lớn nhất, gần 0 nhất)`
+  },
+  {
+    question: "Đổi bù 2 <strong>10000000₂</strong> (8 bit) về thập phân. Giải thích vì sao giá trị này đặc biệt.",
+    answer: `MSB = 1 → số âm.<br>
+    Cách 1 — Đảo + 1:<br>
+    10000000 → NOT → 01111111<br>
+    01111111 + 1 = 10000000 = 128<br>
+    → số gốc = −128<br>
+    <br>
+    Cách 2 — Công thức:<br>
+    X = −1·128 + 0·(64+32+...) = −128<br>
+    <br>
+    → <strong>−128₁₀</strong><br>
+    <br>
+    Đặc biệt vì đây là số âm NHỎ NHẤT của 8 bit (giới hạn dưới).<br>
+    Lưu ý: nếu thử bù 2 của +128 (vượt phạm vi), ta cũng ra 10000000 — nhưng +128 không tồn tại trong 8 bit bù 2. Bit pattern này "chỉ thuộc về" −128.`
+  },
+  {
+    question: "Có thể lưu <strong>−200</strong> trong 8 bit bù 2 được không? Nếu không, cần ít nhất bao nhiêu bit?",
+    answer: `Phạm vi 8 bit bù 2: [−128; 127].<br>
+    −200 < −128 → <strong>không lưu được trong 8 bit</strong>.<br>
+    <br>
+    Tìm số bit n sao cho −2^(n−1) ≤ −200:<br>
+    n = 8:  −128 (chưa đủ)<br>
+    n = 9:  −256 ≥ −200 ✓<br>
+    <br>
+    → Cần ít nhất <strong>9 bit</strong> (trong thực tế CPU dùng 16 bit).<br>
+    <br>
+    Kiểm tra: 9 bit bù 2 có phạm vi [−256; 255], chứa được −200 ✓.`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "Trong số bù 2, bit MSB (bit cao nhất) có ý nghĩa gì?",
+    options: ["Luôn là 0", "Là bit dấu (0 = dương, 1 = âm)", "Là bit chẵn lẻ", "Không có ý nghĩa đặc biệt"],
+    correct: 1,
+    explanation: "MSB trong bù 2 làm bit dấu: 0 = dương, 1 = âm. Nhưng nó cũng vẫn mang trọng số −2^(n−1) trong công thức."
+  },
+  {
+    question: "Cách nào sau đây mô tả ĐÚNG quy trình tạo số bù 2 của một số âm?",
+    options: ["Đảo bit dấu, giữ nguyên các bit khác", "Đảo tất cả bit, rồi cộng 1", "Lấy giá trị tuyệt đối, đảo bit rồi trừ 1", "Cộng 1 rồi mới đảo bit"],
+    correct: 1,
+    explanation: "Bù 2 = Bù 1 + 1. Bù 1 là đảo TẤT CẢ bit (0→1, 1→0), sau đó cộng 1 vào kết quả."
+  },
+  {
+    question: "Phạm vi giá trị của số bù 2 với 8 bit là:",
+    options: ["[−127; 127]", "[−128; 127]", "[−256; 255]", "[0; 255]"],
+    correct: 1,
+    explanation: "8 bit bù 2: [−2^7; 2^7 − 1] = [−128; 127]. Phía âm nhiều hơn phía dương 1 đơn vị."
+  },
+  {
+    question: "Đổi bù 2 10110010₂ (8 bit) về thập phân:",
+    options: ["−78", "−50", "+78", "−178"],
+    correct: 0,
+    explanation: "MSB = 1 → âm. Cách 1: NOT(10110010) = 01001101, +1 = 01001110 = 78 → số gốc = −78. Cách 2: −128 + 32 + 16 + 2 = −78."
+  },
+  {
+    question: "Vì sao số bù 2 lại cộng thêm 1 sau khi đảo bit (so với bù 1)?",
+    options: ["Để tăng độ chính xác", "Để số 0 chỉ có một biểu diễn duy nhất", "Để mở rộng phạm vi dương", "Để cộng trừ nhanh hơn"],
+    correct: 1,
+    explanation: "Bù 1 có hai số 0 (00000000 và 11111111). Cộng 1 làm 11111111 + 1 = 00000000 (tràn bit bị bỏ), nên số 0 chỉ còn 1 biểu diễn."
+  },
+  {
+    question: "Bit pattern 10000000₂ trong số bù 2 (8 bit) biểu diễn số nào?",
+    options: ["+128", "−0", "−128", "0"],
+    correct: 2,
+    explanation: "MSB = 1 → âm. Áp dụng công thức: −1·128 + 0 = −128. Đây là số âm nhỏ nhất của 8 bit bù 2."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn</div>
+  <p>Đây là cách GIÁM KHẢO MUỐN THẤY. Học theo mẫu này!</p>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Đổi −45 sang số bù 2 (8 bit). Sau đó đổi ngược lại để kiểm tra.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải:</strong>
+
+<strong>a) Đổi −45 sang bù 2 (8 bit)</strong>
+
+Phạm vi 8 bit bù 2: [−128; 127]. −45 ∈ khoảng này → OK.
+
+Bước 1 — Đổi |−45| = 45 sang nhị phân 8 bit:
+  45 : 2 = 22 dư 1
+  22 : 2 = 11 dư 0
+  11 : 2 =  5 dư 1
+   5 : 2 =  2 dư 1
+   2 : 2 =  1 dư 0
+   1 : 2 =  0 dư 1
+  → 45₁₀ = 00101101₂
+
+Bước 2 — Bù 1 (đảo bit):
+  00101101 → 11010010
+
+Bước 3 — Bù 2 (cộng 1):
+    11010010
+  +         1
+  ──────────
+    11010011
+
+→ −45₁₀ = <strong>11010011₂</strong> (bù 2, 8 bit)
+  (MSB = 1 → đúng là số âm ✓)
+
+<strong>b) Kiểm tra: đổi 11010011₂ về thập phân</strong>
+
+MSB = 1 → số âm. Tìm giá trị tuyệt đối bằng Cách 1 (đảo + 1):
+
+  11010011 → NOT → 00101100
+  00101100 + 1 = 00101101 = 45₁₀
+
+→ số gốc = −45 ✓ (khớp đề bài)
+
+<strong>Kết luận:</strong> −45₁₀ = 11010011₂ (bù 2, 8 bit)</pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn kiểm tra phạm vi trước khi tính</strong> — ghi rõ "Phạm vi 8 bit bù 2 là [−128; 127], X = ... nằm trong khoảng này → OK". Giám khảo thấy bạn hiểu giới hạn sẽ cộng điểm.</li>
+    <li><strong>Tách rõ 3 bước: nhị phân → bù 1 → bù 2</strong> — mỗi bước một dòng, có phép tính cụ thể. Đừng gộp "đảo + 1" thành một bước vì dễ sai.</li>
+    <li><strong>Luôn ghi chú MSB sau kết quả</strong> — vd "(MSB = 1 → số âm ✓)". Đây là "dấu hiệu" cho thấy bạn hiểu bit dấu, không phải đổi đại.</li>
+    <li><strong>Luôn có phần kiểm tra (đổi ngược lại)</strong> — bù 2 của bù 2 phải ra số ban đầu. Nếu ra khác → sai, tự phát hiện lỗi.</li>
+    <li><strong>Viết phép cộng 1 theo cột thẳng hàng</strong> — giống cộng nhị phân, để giám khảo thấy rõ carry. Tránh viết "11010010 + 1 = 11010011" trên một dòng (khó xem carry).</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ <strong>Quên cộng 1</strong> — chỉ đảo bit (đó là bù 1, không phải bù 2) → mất 50% điểm.</li>
+    <li>❌ <strong>Nhầm "MSB = 1 thì đổi phần còn lại + dấu −"</strong> — đó là dấu lượng, SAI cho bù 2. Phải đảo + 1 rồi mới thêm dấu −.</li>
+    <li>❌ <strong>Không kiểm tra phạm vi</strong> — vd cố lưu −200 trong 8 bit (không thể) mà không nhận ra.</li>
+    <li>❌ <strong>Cộng 1 nhầm vị trí</strong> — phải cộng vào bit thấp nhất (LSB), không phải bit cao nhất.</li>
+    <li>❌ <strong>Quên rằng −128 là trường hợp đặc biệt</strong> — bù 2 của +128 (vượt phạm vi) cũng ra 10000000, gây nhầm −128 với +128.</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>MSB làm bit dấu</strong>: 0 = dương, 1 = âm. Đây là quy ước của bù 2.</li>
+    <li><strong>Bù 1 = đảo tất cả bit</strong> (0↔1).</li>
+    <li><strong>Bù 2 = Bù 1 + 1</strong> (cộng 1 vào LSB).</li>
+    <li><strong>Vì sao +1?</strong> Để số 0 chỉ có một biểu diễn (loại bỏ −0).</li>
+    <li><strong>Phạm vi n bit bù 2</strong>: $\left[-2^{n-1}; 2^{n-1} - 1\right]$. Vd 8 bit: [−128; 127].</li>
+    <li><strong>Đổi bù 2 → thập phân (Cách 1)</strong>: nếu MSB = 1 thì đảo bit + 1, đổi sang thập phân, thêm dấu −.</li>
+    <li><strong>Đổi bù 2 → thập phân (Cách 2)</strong>: $X = -a_{n-1} \cdot 2^{n-1} + \sum_{i=0}^{n-2} a_i \cdot 2^i$ (MSB có trọng số âm).</li>
+    <li><strong>Trường hợp đặc biệt</strong>: bit pattern <code>1000...0</code> biểu diễn số âm nhỏ nhất $-2^{n-1}$.</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Mẹo thi nhanh</div>
+  <p>Khi thi, dùng <strong>Cách 2 (công thức)</strong> để kiểm tra kết quả của Cách 1:</p>
+  <table>
+    <tr><th>Bit</th><th>Trọng số</th><th>Bit</th><th>Trọng số</th></tr>
+    <tr><td>a₇ (MSB)</td><td>−128</td><td>a₃</td><td>+8</td></tr>
+    <tr><td>a₆</td><td>+64</td><td>a₂</td><td>+4</td></tr>
+    <tr><td>a₅</td><td>+32</td><td>a₁</td><td>+2</td></tr>
+    <tr><td>a₄</td><td>+16</td><td>a₀ (LSB)</td><td>+1</td></tr>
+  </table>
+  <p>Chỉ cần cộng các trọng số có bit = 1. Nhớ dấu "−" của MSB! Ví dụ <code>10110010</code>: −128 + 32 + 16 + 2 = −78.</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Mẹo "đối xứng"</div>
+  <p>Nếu cần tìm số đối của một số đã cho (vd có +45, muốn −45): <strong>đảo bit + 1</strong>. Nếu có −45, muốn +45: cũng <strong>đảo bit + 1</strong>. Phép bù 2 có tính đối xứng — áp dụng 2 lần sẽ quay về số ban đầu.</p>
+  <p>Ngoại trừ: −128 (8 bit) — bù 2 của nó = chính nó = 10000000, vì +128 không tồn tại trong 8 bit.</p>
+</div>
+
+<div class="nav-bottom">
+  <a href="01-he-co-so.html" class="btn btn-ghost">← Bài 1: Hệ cơ số</a>
+  <a href="03-endian.html" class="btn">Bài 3: Big/Little Endian →</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

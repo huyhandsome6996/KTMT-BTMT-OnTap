@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 11: Địa chỉ vật lý 8088 - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 11: Địa chỉ vật lý 8088</strong>
+  <span>11/14</span>
+</div>
+
+<h1>Bài 11: Địa chỉ vật lý 8088 (Segment × 16 + Offset)</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Vi xử lý 8088 có 20 đường địa chỉ → định địa chỉ 1 MB bộ nhớ. Nhưng thanh ghi chỉ 16 bit → phải dùng <strong>đoạn (segment)</strong>. Đây là mẹo thông minh nhất của Intel.
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Vấn đề &amp; Giải pháp của 8088</div>
+  <p><strong>Vấn đề:</strong> Vi xử lý 8088 có <strong>20 đường địa chỉ</strong> A0–A19, nên định địa chỉ được $2^{20} = 1\,048\,576$ byte = <strong>1 MB bộ nhớ</strong>. Thanh ghi bên trong 8088 lại chỉ <strong>16 bit</strong> → trực tiếp chỉ định địa chỉ được tối đa $2^{16} = 64$ KB, KHÔNG ĐỦ để phủ kín 1 MB.</p>
+  <p><strong>Giải pháp của Intel:</strong> Chia bộ nhớ 1 MB thành nhiều <strong>đoạn (segment)</strong> dài 64 KB. Dùng <strong>2 thanh ghi 16 bit</strong> để định địa chỉ:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>Segment (đoạn):</strong> chỉ đoạn nào đang dùng (địa chỉ nền của đoạn, dài 16 bit).</li>
+    <li><strong>Offset (độ dời):</strong> chỉ vị trí bên trong đoạn (cũng 16 bit, ≤ FFFFH = 64 KB).</li>
+  </ul>
+  <p>Địa chỉ vật lý thực = Segment × 16 + Offset. Phép nhân 16 "kéo" segment lên phía trên để cộng với offset.</p>
+</div>
+
+<h3>1. Công thức cốt lõi</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 ĐỊA CHỈ VẬT LÝ (Physical Address)</div>
+  <p>$$\text{PA} = \text{Segment} \times 16 + \text{Offset} = \text{Segment} \times 10_H + \text{Offset}$$</p>
+  <p><strong>Vì sao nhân 16?</strong> Vì $16 = 2^4$, nên nhân với 16 = <strong>dịch trái 4 bit</strong> = thêm <strong>1 chữ số 0 hexa</strong> bên phải.</p>
+  <div class="code-block">Segment: 1234H
+× 16    : 12340H   ← chỉ cần thêm 1 số 0 vào bên phải!
++ Offset:  0056H
+─────────────────
+= PA     : 12396H</div>
+  <p>Như vậy, để tính nhanh địa chỉ vật lý trong hệ hexa, ta chỉ cần: <strong>thêm 1 chữ số 0 vào sau Segment</strong>, rồi cộng với Offset.</p>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Mẹo thi: "Nhân 10H = thêm số 0"</div>
+  <p>Nhiều sinh viên hay quên rằng $16 = 10_H$. Khi thấy đề yêu cầu <code>Segment × 16</code>, đừng vội đổi sang thập phân rồi nhân — chỉ cần <strong>viết thêm chữ số 0 vào bên phải Segment</strong> rồi cộng Offset là xong. Nhanh và chính xác hơn rất nhiều.</p>
+</div>
+
+<h3>2. Bốn thanh ghi đoạn của 8088</h3>
+
+<table>
+  <tr>
+    <th>Thanh ghi</th>
+    <th>Tên đầy đủ</th>
+    <th>Offset đi kèm</th>
+    <th>Vai trò</th>
+  </tr>
+  <tr>
+    <td><strong>CS</strong></td>
+    <td>Code Segment (đoạn mã lệnh)</td>
+    <td><strong>IP</strong> (Instruction Pointer)</td>
+    <td>Lệnh đang chạy ở địa chỉ CS:IP</td>
+  </tr>
+  <tr>
+    <td><strong>DS</strong></td>
+    <td>Data Segment (đoạn dữ liệu)</td>
+    <td><strong>SI</strong> hoặc DI</td>
+    <td>Đọc/ghi dữ liệu ở DS:SI</td>
+  </tr>
+  <tr>
+    <td><strong>SS</strong></td>
+    <td>Stack Segment (đoạn stack)</td>
+    <td><strong>SP</strong> (Stack Pointer)</td>
+    <td>Đỉnh stack ở SS:SP</td>
+  </tr>
+  <tr>
+    <td><strong>ES</strong></td>
+    <td>Extra Segment (đoạn mở rộng)</td>
+    <td><strong>DI</strong></td>
+    <td>Dùng cho thao tác chuỗi (string)</td>
+  </tr>
+</table>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1</div>
+  <p>Mỗi thanh ghi đoạn luôn đi kèm với một thanh ghi offset CỐ ĐỊNH. <strong>CS đi với IP, DS đi với SI/DI, SS đi với SP, ES đi với DI</strong>. Nếu đề hỏi "địa chỉ của lệnh đang chạy" mà bạn lấy DS:IP → SAI. Phải là <strong>CS:IP</strong>.</p>
+</div>
+
+<h3>3. Phạm vi địa chỉ</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Phạm vi 1 MB của 8088</div>
+  <p>Địa chỉ vật lý 20 bit chạy từ:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>Nhỏ nhất:</strong> $00000_H$ (khi Segment = 0000H, Offset = 0000H)</li>
+    <li><strong>Lớn nhất:</strong> $FFFFF_H$ (khi Segment = F000H, Offset = FFFFH)</li>
+  </ul>
+  <p>Tổng cộng: $FFFFF_H - 00000_H + 1 = 1\,048\,576$ byte = 1 MB.</p>
+  <p>Mỗi đoạn dài tối đa 64 KB (= $2^{16}$ byte) vì offset 16 bit chỉ đếm đến FFFFH.</p>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #2 — Tràn 20 bit</div>
+  <p>Nếu <code>Segment × 16 + Offset</code> vượt $FFFFF_H$, bit thứ 20 trở đi bị <strong>mất (drop)</strong> — gọi là "wrap around" (cuộn vòng). Vd: $F0000_H + FFFF_H = 10FFFF_H$, nhưng CPU chỉ giữ 20 bit thấp = $0FFFF_H$ (quay về đầu RAM). Tuy nhiên đề thi thường né trường hợp này.</p>
+</div>
+
+<h3>4. Bối cảnh lịch sử &amp; ví dụ thực tế</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🏛️ Vì sao 8088 dùng kiến trúc đoạn?</div>
+  <p>Năm 1978, Intel ra mắt 8086 (và 8088 năm 1979) — vi xử lý 16 bit đầu tiên của Intel. Vì cần <strong>tương thích ngược</strong> với 8080/8085 (8 bit, 16 bit thanh ghi), Intel giữ <strong>thanh ghi 16 bit</strong> nhưng muốn <strong>định địa chỉ được 1 MB</strong> (lớn hơn rất nhiều so với 64 KB của 8080). Giải pháp "đoạn" sinh ra để giải quyết bài toán này mà không phải tăng độ rộng thanh ghi lên 20 bit.</p>
+  <p>Ví dụ thực tế: <strong>IBM PC nguyên bản (1981)</strong> dùng 8088. BIOS được nạp tại <code>F000H:???H</code> (đoạn cao nhất). DOS chạy ở <code>0000H:????H</code> (đoạn thấp). Màn hình văn bản dùng bộ nhớ video ở <code>B000H:0000H</code> (đen trắng) hoặc <code>B800H:0000H</code> (màu). Mỗi "đoạn" dài 64 KB, đủ cho từng nhu cầu riêng biệt.</p>
+</div>
+
+<h3>5. Ví dụ 4 cặp S:O cho 4 mục đích khác nhau</h3>
+
+<table>
+  <tr>
+    <th>Hoạt động</th>
+    <th>Cặp S:O</th>
+    <th>Ví dụ giá trị</th>
+    <th>Ý nghĩa</th>
+  </tr>
+  <tr>
+    <td>Lệnh đang chạy</td>
+    <td>CS:IP</td>
+    <td>CS=1234H, IP=0005H → PA=12345H</td>
+    <td>CPU đang nạp/thực hiện lệnh tại địa chỉ 12345H</td>
+  </tr>
+  <tr>
+    <td>Đọc/ghi dữ liệu</td>
+    <td>DS:SI</td>
+    <td>DS=2000H, SI=0010H → PA=20010H</td>
+    <td>Đọc byte dữ liệu tại 20010H</td>
+  </tr>
+  <tr>
+    <td>Đỉnh stack</td>
+    <td>SS:SP</td>
+    <td>SS=3000H, SP=FFFEH → PA=3FFFEH</td>
+    <td>Lệnh PUSH/POP thao tác tại đỉnh stack 3FFFEH</td>
+  </tr>
+  <tr>
+    <td>Thao tác chuỗi (string)</td>
+    <td>ES:DI</td>
+    <td>ES=4000H, DI=0100H → PA=40100H</td>
+    <td>Lệnh MOVSB sao chép byte từ DS:SI sang ES:DI</td>
+  </tr>
+</table>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Mẹo nhớ 4 cặp S:O</div>
+  <p>Đọc câu vần: <strong>"Code-IP, Data-SI, Stack-SP, Extra-DI"</strong> — mỗi thanh ghi đoạn đi với đúng offset cố định của nó. Khi gặp đề "địa chỉ của lệnh đang chạy" → CS:IP; "đỉnh stack" → SS:SP; "đọc dữ liệu" → DS:SI; "thao tác chuỗi" → ES:DI.</p>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 5 ví dụ từ cơ bản đến nâng cao</div>
+  <p>Tính địa chỉ vật lý cho các cặp Segment:Offset sau — độ khó tăng dần.</p>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+const steps = [
+  {
+    title: "Bước 1 — Cơ bản: CS:IP = 1000H:0200H",
+    content: `
+      <p>Áp dụng công thức: $\text{PA} = \text{CS} \times 16 + \text{IP} = \text{CS} \times 10_H + \text{IP}$.</p>
+      <p><strong>B1:</strong> Lấy CS = 1000H, nhân với 10H = thêm 1 số 0 bên phải:</p>
+      <div class="code-block">1000H × 10H = <strong class="text-accent">10000H</strong></div>
+      <p><strong>B2:</strong> Cộng với Offset IP = 0200H:</p>
+      <div class="code-block">   10000H
+ +   0200H
+ ─────────
+ = 10200H</div>
+      <div class="result-box"><span class="result-label">Kết quả:</span>PA = 10200H (địa chỉ byte đầu của đoạn lệnh)</div>
+    `
+  },
+  {
+    title: "Bước 2 — Hexa có chữ cái: CS:IP = 0A2BH:00F3H",
+    content: `
+      <p>Đề có chữ A, B, F — phải cộng hexa đúng cách (nhớ A=10, B=11, F=15).</p>
+      <p><strong>B1:</strong> CS × 10H = thêm số 0:</p>
+      <div class="code-block">0A2BH × 10H = <strong class="text-accent">0A2B0H</strong></div>
+      <p><strong>B2:</strong> Cộng Offset 00F3H (cột phải sang trái):</p>
+      <div class="code-block">   0A2B0H
+ +   00F3H
+ ─────────
+   0A3A3H</div>
+      <p><strong>Giải thích từng cột (từ phải sang trái):</strong></p>
+      <ul>
+        <li>Cột 0: 0 + 3 = 3</li>
+        <li>Cột 1: B(11) + F(15) = 26 = 16 + 10 → ghi A, nhớ 1</li>
+        <li>Cột 2: 2 + 0 + 1 (nhớ) = 3</li>
+        <li>Cột 3: A(10) + 0 = A</li>
+        <li>Cột 4: 0 (nhớ không)</li>
+      </ul>
+      <div class="result-box"><span class="result-label">Kết quả:</span>PA = 0A3A3H</div>
+    `
+  },
+  {
+    title: "Bước 3 — Offset tối đa: DS:SI = 2000H:FFFFH",
+    content: `
+      <p>Đây là <strong>offset lớn nhất</strong> có thể (FFFFH = 65535), nằm ở cuối đoạn 64 KB bắt đầu từ 20000H.</p>
+      <p><strong>B1:</strong> DS × 10H:</p>
+      <div class="code-block">2000H × 10H = <strong class="text-accent">20000H</strong></div>
+      <p><strong>B2:</strong> Cộng với FFFFH:</p>
+      <div class="code-block">   20000H
+ +   FFFFH
+ ─────────
+   2FFFFH</div>
+      <p><strong>Giải thích:</strong> $20000_H + FFFF_H = 20000_H + (10000_H - 1) = 30000_H - 1 = 2FFFF_H$. Đây là byte cuối của đoạn DS (byte thứ 65535 kể từ 20000H).</p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>PA = 2FFFFH — byte cuối của đoạn dữ liệu bắt đầu ở 20000H</div>
+    `
+  },
+  {
+    title: "Bước 4 — Biên giới 1 MB: SS:SP = F000H:FFFFH",
+    content: `
+      <p>Cặp này chạm tới <strong>byte cuối cùng</strong> của 1 MB RAM. Đây là trường hợp cực biên.</p>
+      <p><strong>B1:</strong> SS × 10H:</p>
+      <div class="code-block">F000H × 10H = <strong class="text-accent">F0000H</strong></div>
+      <p><strong>B2:</strong> Cộng với FFFFH:</p>
+      <div class="code-block">   F0000H
+ +   FFFFH
+ ─────────
+   FFFFFH</div>
+      <p><strong>Vì sao đúng?</strong> $F0000_H + FFFF_H = F0000_H + 10000_H - 1 = 100000_H - 1 = FFFFF_H$. Địa chỉ $FFFFF_H$ chính là byte thứ 1.048.575 — byte cuối của RAM 1 MB.</p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>PA = FFFFFH — byte cuối cùng của 1 MB bộ nhớ</div>
+    `
+  },
+  {
+    title: "Bước 5 — Nhiều cặp S:O cùng một địa chỉ: PA = 12345H",
+    content: `
+      <p>Đây là <strong>đặc điểm độc đáo của kiến trúc đoạn</strong>: cùng một địa chỉ vật lý có thể được trỏ tới bởi <strong>nhiều cặp S:O khác nhau</strong>.</p>
+      <p>Phương pháp: tách PA = 12345H thành $S \times 10H + O$. Vì $S \times 10H$ luôn kết thúc bằng chữ số 0, ta có thể "mượn" các chữ số 0 đó cho Offset.</p>
+      <div class="code-block">PA = 12345H
+
+Cách 1: S = 1234H, O = 0005H     → 1234H×10H + 0005H = 12340H + 0005H = 12345H ✓
+Cách 2: S = 1230H, O = 0045H     → 1230H×10H + 0045H = 12300H + 0045H = 12345H ✓
+Cách 3: S = 1200H, O = 0345H     → 1200H×10H + 0345H = 12000H + 0345H = 12345H ✓
+Cách 4: S = 1000H, O = 2345H     → 1000H×10H + 2345H = 10000H + 2345H = 12345H ✓
+...</div>
+      <p><strong>Quy luật:</strong> Tách địa chỉ PA thành 2 phần: phần "nền" kết thúc bằng 0 (gọi là Segment×10H) + phần còn lại (Offset). Bao nhiêu chữ số 0 chuyển sang offset thì Segment phải "bớt" đi đúng bấy nhiêu chữ số thấp.</p>
+      <p><strong>Tổng quát:</strong> Với PA có $n$ chữ số hex, có thể có tới $n - 1$ cách biểu diễn S:O khác nhau (vì có $n - 1$ vị trí để "cắt").</p>
+      <div class="result-box"><span class="result-label">Kết luận:</span>Cùng một byte vật lý có thể có nhiều địa chỉ logic S:O khác nhau. Đây là "tính linh hoạt" của kiến trúc đoạn 8088.</div>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🌐 Máy tính địa chỉ vật lý 8088</div>
+
+  <div class="tabs" data-tabs="addr">
+    <button class="tab active">S:O → Địa chỉ vật lý</button>
+    <button class="tab">PA → nhiều cặp S:O</button>
+    <button class="tab">Bản đồ bộ nhớ 1 MB</button>
+  </div>
+
+  <!-- Tab 1: S:O -> PA -->
+  <div class="tab-content active">
+    <p>Nhập Segment (4 chữ số hex) và Offset (4 chữ số hex):</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+      <div>
+        <label>Segment (CS/DS/SS/ES):</label><br>
+        <input type="text" id="seg-input" value="0A2B" pattern="[0-9A-Fa-f]{1,4}" maxlength="4" style="font-family: var(--font-mono); text-transform: uppercase;">
+      </div>
+      <div>
+        <label>Offset:</label><br>
+        <input type="text" id="off-input" value="00F3" pattern="[0-9A-Fa-f]{1,4}" maxlength="4" style="font-family: var(--font-mono); text-transform: uppercase;">
+      </div>
+      <button class="btn mt-1" onclick="calcPA()">Tính địa chỉ vật lý!</button>
+    </div>
+    <div id="pa-result" class="mt-2"></div>
+  </div>
+
+  <!-- Tab 2: PA -> many S:O -->
+  <div class="tab-content">
+    <p>Nhập địa chỉ vật lý (tối đa 5 chữ số hex, ≤ FFFFFH):</p>
+    <input type="text" id="pa-input" value="12345" pattern="[0-9A-Fa-f]{1,5}" maxlength="5" style="font-family: var(--font-mono); text-transform: uppercase;">
+    <button class="btn mt-1" onclick="findSO()">Tìm các cặp S:O</button>
+    <div id="so-result" class="mt-2"></div>
+  </div>
+
+  <!-- Tab 3: Memory map -->
+  <div class="tab-content">
+    <p>Chọn Segment để xem đoạn 64 KB trong bản đồ bộ nhớ 1 MB:</p>
+    <input type="text" id="map-seg" value="2000" pattern="[0-9A-Fa-f]{1,4}" maxlength="4" style="font-family: var(--font-mono); text-transform: uppercase;">
+    <button class="btn mt-1" onclick="drawMemMap()">Vẽ bản đồ!</button>
+    <div id="map-result" class="mt-2"></div>
+  </div>
+</div>
+
+<script>
+function calcPA() {
+  const segStr = document.getElementById('seg-input').value.trim().toUpperCase();
+  const offStr = document.getElementById('off-input').value.trim().toUpperCase();
+  if (!/^[0-9A-F]{1,4}$/.test(segStr) || !/^[0-9A-F]{1,4}$/.test(offStr)) {
+    document.getElementById('pa-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Segment và Offset phải là 1-4 chữ số hexa (0-9, A-F).</div>';
+    return;
+  }
+  const seg = parseInt(segStr, 16);
+  const off = parseInt(offStr, 16);
+  const base = seg * 16; // seg << 4
+  const pa = base + off;
+
+  const segPadded = segStr.padStart(4, '0');
+  const offPadded = offStr.padStart(4, '0');
+  const baseHex = base.toString(16).toUpperCase().padStart(5, '0');
+  const paHex = pa.toString(16).toUpperCase().padStart(5, '0');
+
+  let html = `<p><strong>Bước 1:</strong> Segment × 10H = thêm 1 chữ số 0 vào bên phải ${segPadded}H</p>`;
+  html += `<div class="code-block">${segPadded}H × 10H = <strong class="text-accent">${baseHex}H</strong></div>`;
+  html += `<p><strong>Bước 2:</strong> Cộng với Offset ${offPadded}H:</p>`;
+  html += `<div class="code-block">   ${baseHex}H\n +   ${offPadded}H\n ─────────\n = ${paHex}H</div>`;
+
+  // Bit display of PA (20 bits)
+  const bin = pa.toString(2).padStart(20, '0');
+  html += `<p><strong>Địa chỉ vật lý 20 bit:</strong></p>`;
+  const bitRow = Bit.renderBits(bin, { labels: true });
+  const tempDiv = document.createElement('div');
+  tempDiv.appendChild(bitRow);
+  html += tempDiv.innerHTML;
+
+  const inRange = pa <= 0xFFFFF;
+  if (inRange) {
+    html += `<div class="result-box"><span class="result-label">Kết quả:</span>${segPadded}H:${offPadded}H → PA = ${paHex}H (địa chỉ hợp lệ trong 1 MB)</div>`;
+  } else {
+    const wrapped = pa & 0xFFFFF;
+    const wrappedHex = wrapped.toString(16).toUpperCase().padStart(5, '0');
+    html += `<div class="result-box error"><span class="result-label">Tràn 20 bit!</span>Tổng = ${paHex}H vượt FFFFFH → CPU chỉ giữ 20 bit thấp = ${wrappedHex}H (wrap around)</div>`;
+  }
+  document.getElementById('pa-result').innerHTML = html;
+  renderMathInElement(document.getElementById('pa-result'), {delimiters:[{left:'$',right:'$',display:false}]});
+}
+
+function findSO() {
+  const paStr = document.getElementById('pa-input').value.trim().toUpperCase();
+  if (!/^[0-9A-F]{1,5}$/.test(paStr)) {
+    document.getElementById('so-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> PA phải là 1-5 chữ số hexa.</div>';
+    return;
+  }
+  const pa = parseInt(paStr, 16);
+  if (pa > 0xFFFFF) {
+    document.getElementById('so-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> PA vượt FFFFFH (1 MB).</div>';
+    return;
+  }
+  const paPadded = paStr.padStart(5, '0');
+  let html = `<p>Địa chỉ vật lý: <strong>${paPadded}H</strong></p>`;
+  html += `<p>Các cặp S:O hợp lệ (Segment phải thỏa mãn: PA − Segment×16 ≤ FFFFH):</p>`;
+  html += `<table><tr><th>#</th><th>Segment</th><th>Offset</th><th>Kiểm tra</th></tr>`;
+  // Sinh các cặp: dùng 4 chữ số cuối của PA làm offset (đừng tràn)
+  // Cách tổng quát: chọn Segment sao cho PA - S*16 nằm trong [0, FFFF]
+  // = S trong khoảng [ceil((PA-FFFF)/16), floor(PA/16)]
+  const lowS = Math.max(0, Math.ceil((pa - 0xFFFF) / 16));
+  const highS = Math.floor(pa / 16);
+  let count = 0;
+  // Lấy một vài mẫu đại diện: lowS, lowS+0x100, lowS+0x200,... nhưng đảm bảo ≤ highS
+  // Cách đơn giản: hiển thị 5 cặp đầu
+  for (let s = lowS; s <= highS && count < 8; s = (s === lowS) ? Math.min(highS, lowS + 1) : Math.min(highS, s + Math.max(1, Math.floor((highS - lowS) / 7)))) {
+    const off = pa - s * 16;
+    const sHex = s.toString(16).toUpperCase().padStart(4, '0');
+    const oHex = off.toString(16).toUpperCase().padStart(4, '0');
+    const check = s * 16 + off;
+    const checkHex = check.toString(16).toUpperCase().padStart(5, '0');
+    html += `<tr><td>${count + 1}</td><td>${sHex}H</td><td>${oHex}H</td><td>${sHex}H × 10H + ${oHex}H = ${checkHex}H ${check === pa ? '✓' : '✗'}</td></tr>`;
+    count++;
+    if (s === highS) break;
+  }
+  html += `</table>`;
+  const total = highS - lowS + 1;
+  html += `<div class="result-box"><span class="result-label">Kết luận:</span>PA = ${paPadded}H có <strong>${total}</strong> cặp S:O hợp lệ khác nhau (đây là đặc điểm của kiến trúc đoạn 8088).</div>`;
+  document.getElementById('so-result').innerHTML = html;
+}
+
+function drawMemMap() {
+  const segStr = document.getElementById('map-seg').value.trim().toUpperCase();
+  if (!/^[0-9A-F]{1,4}$/.test(segStr)) {
+    document.getElementById('map-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Segment phải là 1-4 chữ số hexa.</div>';
+    return;
+  }
+  const seg = parseInt(segStr, 16);
+  const base = seg * 16;
+  const end = base + 0xFFFF;
+  const baseHex = base.toString(16).toUpperCase().padStart(5, '0');
+  const endHex = Math.min(0xFFFFF, end).toString(16).toUpperCase().padStart(5, '0');
+
+  let html = `<p>Đoạn <strong>${segStr.padStart(4,'0')}H</strong> chiếm vùng bộ nhớ từ <strong>${baseHex}H</strong> đến <strong>${endHex}H</strong> (64 KB).</p>`;
+  // Vẽ 16 hàng × 16 cột = 256 ô (mỗi ô = 4 KB, tổng 1 MB)
+  html += `<div style="display: grid; grid-template-columns: 60px repeat(16, 1fr); gap: 2px; font-family: var(--font-mono); font-size: 0.7rem;">`;
+  // Header
+  html += `<div></div>`;
+  for (let c = 0; c < 16; c++) html += `<div style="text-align:center; color: var(--gray-500);">${c.toString(16).toUpperCase()}</div>`;
+  // Rows
+  for (let r = 0; r < 16; r++) {
+    const rowStart = r * 0x10000;
+    const rowLabel = rowStart.toString(16).toUpperCase().padStart(5, '0');
+    html += `<div style="color: var(--gray-500);">${rowLabel}</div>`;
+    for (let c = 0; c < 16; c++) {
+      const blockStart = rowStart + c * 0x1000; // 4 KB block
+      const inSeg = blockStart >= base && blockStart <= end && blockStart <= 0xFFFFF;
+      const style = inSeg
+        ? 'background: var(--primary); color: white; text-align:center; padding: 4px; border-radius: 2px;'
+        : 'background: var(--gray-100); color: var(--gray-500); text-align:center; padding: 4px; border-radius: 2px;';
+      html += `<div style="${style}">${blockStart.toString(16).toUpperCase().slice(-3)}</div>`;
+    }
+  }
+  html += `</div>`;
+  html += `<p class="mt-2"><span style="display:inline-block; width:12px; height:12px; background: var(--primary); border-radius: 2px; vertical-align: middle;"></span> = vùng thuộc đoạn ${segStr.padStart(4,'0')}H (64 KB)</p>`;
+  html += `<div class="result-box"><span class="result-label">Tổng kết:</span>Đoạn ${segStr.padStart(4,'0')}H bắt đầu tại ${baseHex}H, kết thúc tại ${endHex}H, dài 64 KB.</div>`;
+  document.getElementById('map-result').innerHTML = html;
+}
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Tính địa chỉ vật lý của lệnh đang chạy khi <strong>CS:IP = 1A2BH:0034H</strong>.",
+    answer: `CS × 10H + IP<br>
+    1A2BH × 10H = <strong>1A2B0H</strong><br>
+    1A2B0H + 0034H = <strong>1A2E4H</strong><br>
+    → PA = <strong>1A2E4H</strong>`
+  },
+  {
+    question: "Đỉnh stack ở <strong>SS:SP = 3F00H:FFFEH</strong>. Tìm địa chỉ vật lý của đỉnh stack.",
+    answer: `SS × 10H + SP<br>
+    3F00H × 10H = <strong>3F000H</strong><br>
+    3F000H + FFFEH = <strong>4FFFEH</strong><br>
+    → PA = <strong>4FFFEH</strong>`
+  },
+  {
+    question: "Cho địa chỉ vật lý <strong>PA = 2A345H</strong>. Tìm <strong>3 cặp S:O khác nhau</strong> cùng trỏ tới địa chỉ này.",
+    answer: `Tách PA thành 2 phần, chuyển dần các chữ số 0 từ Segment sang Offset:<br>
+    • Cặp 1: S = 2A34H, O = 0005H → 2A34H×10H + 0005H = 2A340H + 0005H = 2A345H ✓<br>
+    • Cặp 2: S = 2A30H, O = 0045H → 2A30H×10H + 0045H = 2A300H + 0045H = 2A345H ✓<br>
+    • Cặp 3: S = 2A00H, O = 0345H → 2A00H×10H + 0345H = 2A000H + 0345H = 2A345H ✓<br>
+    (còn nhiều cặp khác)`
+  },
+  {
+    question: "Địa chỉ vật lý <strong>FFFFFH</strong> (byte cuối của 1 MB) có thể được trỏ bởi cặp S:O nào? Nêu ý nghĩa.",
+    answer: `Một cặp phổ biến: <strong>F000H:FFFFH</strong><br>
+    F000H × 10H = F0000H<br>
+    F0000H + FFFFH = FFFFFH ✓<br>
+    Ý nghĩa: đây là byte cuối cùng của RAM 1 MB trên 8088. Stack hoặc dữ liệu hệ thống thường đặt gần đây để dễ kiểm tra.`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "Vi xử lý 8088 có bao nhiêu đường địa chỉ? Bộ nhớ tối đa định địa chỉ được là bao nhiêu?",
+    options: ["16 đường, 64 KB", "20 đường, 1 MB", "16 đường, 1 MB", "32 đường, 4 GB"],
+    correct: 1,
+    explanation: "8088 có 20 đường địa chỉ (A0–A19) → 2^20 = 1.048.576 byte = 1 MB."
+  },
+  {
+    question: "Công thức tính địa chỉ vật lý 8088 là gì?",
+    options: ["PA = Segment + Offset", "PA = Segment × 16 + Offset", "PA = Segment × 8 + Offset", "PA = Segment × 256 + Offset"],
+    correct: 1,
+    explanation: "PA = Segment × 16 + Offset = Segment × 10H + Offset. Nhân 16 = dịch trái 4 bit = thêm 1 số 0 hexa bên phải."
+  },
+  {
+    question: "Khi nhân Segment với 10H (hex), kết quả có đặc điểm gì?",
+    options: ["Thêm 1 chữ số 0 vào bên phải Segment", "Thêm 1 chữ số 1 vào bên trái", "Đảo bit Segment", "Nhân đôi Segment"],
+    correct: 0,
+    explanation: "Nhân với 10H trong hexa = nhân với 16 trong thập phân = dịch trái 4 bit = thêm 1 chữ số 0 hexa bên phải."
+  },
+  {
+    question: "Thanh ghi đoạn nào đi kèm với thanh ghi IP để chỉ địa chỉ lệnh đang chạy?",
+    options: ["DS", "SS", "ES", "CS"],
+    correct: 3,
+    explanation: "CS (Code Segment) đi với IP (Instruction Pointer). Địa chỉ lệnh đang chạy = CS:IP."
+  },
+  {
+    question: "Địa chỉ vật lý lớn nhất 8088 có thể định địa chỉ là bao nhiêu?",
+    options: ["FFFFH", "FFFFF H", "FFFFFFH", "FFFFFFFFH"],
+    correct: 1,
+    explanation: "Địa chỉ 20 bit lớn nhất = FFFFFH (= 1.048.575). Đây là byte cuối của 1 MB RAM."
+  },
+  {
+    question: "Một địa chỉ vật lý có thể có bao nhiêu cặp S:O khác nhau cùng trỏ tới nó?",
+    options: ["Chỉ 1 cặp duy nhất", "2 cặp", "Nhiều cặp (tùy độ dài địa chỉ)", "Không thể xác định"],
+    correct: 2,
+    explanation: "Đây là đặc điểm của kiến trúc đoạn: cùng một byte có thể có nhiều cặp S:O khác nhau trỏ tới, vì ta có thể chuyển dịch chữ số 0 giữa Segment và Offset."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn</div>
+  <p>Đây là cách GIÁM KHẢO MUỐN THẤY trong bài thi địa chỉ vật lý 8088.</p>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Cho CS:IP = 0A2BH:00F3H. Tính địa chỉ vật lý của lệnh đang chạy.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải:</strong>
+
+<strong>Công thức:</strong>  PA = CS × 16 + IP = CS × 10H + IP
+
+<strong>Bước 1:</strong> Tính CS × 10H
+  CS = 0A2BH
+  × 10H = 0A2B0H   (thêm 1 số 0 bên phải)
+
+<strong>Bước 2:</strong> Cộng với Offset IP
+     0A2B0H
+   +   00F3H
+   ─────────
+     0A3A3H
+
+Cộng từng cột (phải → trái):
+  - Cột 0: 0 + 3 = 3
+  - Cột 1: B(11) + F(15) = 26 = 16 + 10 → ghi A, nhớ 1
+  - Cột 2: 2 + 0 + 1 (nhớ) = 3
+  - Cột 3: A(10) + 0 = A
+  - Cột 4: 0
+
+<strong>Kết luận:</strong> Địa chỉ vật lý của lệnh đang chạy là <strong>0A3A3H</strong></pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn viết công thức trước khi tính</strong> — "PA = CS × 10H + IP". Giám khảo thấy bạn nhớ công thức sẽ cho điểm ngay cả khi tính sai.</li>
+    <li><strong>Dùng mẹo "thêm số 0" thay vì nhân thập phân</strong> — nhanh, gọn, ít sai. Viết rõ: "CS × 10H = thêm 1 số 0 → 0A2B0H".</li>
+    <li><strong>Cộng hexa viết theo cột thẳng hàng</strong> — dễ thấy nhớ, dễ chấm. Ghi rõ chữ số nhớ (như "nhớ 1").</li>
+    <li><strong>Nhắc lại ý nghĩa</strong> — vd "đây là địa chỉ lệnh đang chạy vì dùng CS:IP", "đây là đỉnh stack vì dùng SS:SP". Giám khảo thấy bạn hiểu, không chỉ học vẹt.</li>
+    <li><strong>Kết luận in đậm/gạch chân</strong> — "PA = 0A3A3H" rõ ràng ở cuối. Giám khảo tìm đáp số nhanh, ấn tượng tốt.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ Quên nhân Segment với 16 (cộng thẳng Segment + Offset) → kết quả sai hoàn toàn.</li>
+    <li>❌ Đổi Segment sang thập phân rồi nhân 16, dễ tính nhẩm sai — hãy dùng "thêm số 0 hexa".</li>
+    <li>❌ Cộng hexa không nhớ (B + F = 26 = 1A, không phải 26 hay 1B) → sai kết quả.</li>
+    <li>❌ Dùng sai cặp S:O — vd lấy DS:IP thay vì CS:IP cho lệnh đang chạy.</li>
+    <li>❌ Quên thêm số 0 phía trước cho đủ 5 chữ số (viết A3A3H thay vì 0A3A3H) → khó đọc, có thể trừ điểm thẩm mỹ.</li>
+    <li>❌ Khi tính tràn 20 bit (≥ 100000H), không đề cập "wrap around" → giám khảo nghĩ bạn không hiểu vấn đề.</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>8088 có 20 đường địa chỉ</strong> → định địa chỉ 1 MB, nhưng thanh ghi 16 bit → phải dùng <strong>đoạn</strong>.</li>
+    <li><strong>Công thức:</strong> $\text{PA} = \text{Segment} \times 16 + \text{Offset} = \text{Segment} \times 10_H + \text{Offset}$.</li>
+    <li><strong>Mẹo thi:</strong> nhân Segment với 10H = <strong>thêm 1 chữ số 0 hexa</strong> bên phải.</li>
+    <li><strong>4 thanh ghi đoạn:</strong> CS (Code, với IP), DS (Data, với SI/DI), SS (Stack, với SP), ES (Extra, với DI).</li>
+    <li><strong>Phạm vi:</strong> PA từ $00000_H$ đến $FFFFF_H$ (= 1 MB). Mỗi đoạn tối đa 64 KB.</li>
+    <li><strong>Một PA có thể có nhiều cặp S:O</strong> khác nhau — đặc điểm của kiến trúc đoạn.</li>
+    <li><strong>Tràn 20 bit</strong> bị "wrap around" (CPU giữ 20 bit thấp).</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Mẹo thi nhanh</div>
+  <p>Khi gặp đề "tính địa chỉ vật lý", làm theo 3 bước cố định:</p>
+  <ol style="padding-left: 20px;">
+    <li>Viết công thức: <code>PA = Segment × 10H + Offset</code>.</li>
+    <li>Thêm số 0 vào bên phải Segment.</li>
+    <li>Cộng với Offset theo cột (nhớ quy tắc hexa: A=10, B=11, ..., F=15; 16 = 10H = nhớ 1).</li>
+  </ol>
+  <p>3 bước này giải được <strong>95% bài tập địa chỉ vật lý 8088</strong>. 5% còn lại là bài "tìm nhiều cặp S:O" — hãy nhớ quy tắc "chuyển 0 từ Segment sang Offset".</p>
+</div>
+
+<div class="nav-bottom">
+  <a href="10-hamming-sua-loi.html" class="btn btn-ghost">← Bài 10: Hamming sửa lỗi</a>
+  <a href="12-co-fr.html" class="btn">Bài 12: Cờ FR →</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

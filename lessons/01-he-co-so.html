@@ -19,9 +19,145 @@
 
 <h1>Bài 1: Hệ cơ số (Thập phân / Nhị phân / Hexa)</h1>
 
-<p class="text-center" style="color: var(--gray-700);">
+<p class="text-center" style="color: var(--text-secondary); font-size: 1.05rem;">
   Đây là bài học nền tảng quan trọng nhất. Nắm vững bài này trước khi học các bài khác.
 </p>
+
+<!-- ============================== INTERACTIVE HERO ============================== -->
+<div class="visualizer" style="margin-top: 30px;">
+  <div class="visualizer-title">🎮 Bit Playground — Click bit để đổi giá trị!</div>
+  <p class="text-center" style="color: var(--text-secondary); margin-bottom: 20px;">
+    Click vào từng bit bên dưới. Xem số thập phân và hexa thay đổi theo thời gian thực.
+  </p>
+
+  <div class="visualizer-canvas">
+    <div id="hero-bits" style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;"></div>
+
+    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-top: 20px;">
+      <div style="text-align: center; padding: 12px 20px; background: var(--bg-elevated); border-radius: var(--radius); min-width: 140px;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Thập phân</div>
+        <div id="hero-dec" style="font-size: 2rem; font-weight: 800; color: var(--primary-dark); font-family: var(--font-mono);">0</div>
+      </div>
+      <div style="text-align: center; padding: 12px 20px; background: var(--bg-elevated); border-radius: var(--radius); min-width: 140px;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Nhị phân</div>
+        <div id="hero-bin" style="font-size: 1.4rem; font-weight: 700; color: var(--accent); font-family: var(--font-mono);">00000000</div>
+      </div>
+      <div style="text-align: center; padding: 12px 20px; background: var(--bg-elevated); border-radius: var(--radius); min-width: 140px;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Hexa</div>
+        <div id="hero-hex" style="font-size: 2rem; font-weight: 800; color: var(--success); font-family: var(--font-mono);">0x00</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 8px; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+      <button class="btn btn-secondary" onclick="heroRandom()">🎲 Random</button>
+      <button class="btn" onclick="heroIncrement()">+1</button>
+      <button class="btn btn-secondary" onclick="heroDecrement()">−1</button>
+      <button class="btn btn-success" onclick="heroAnimate()">▶ Auto count 0→255</button>
+      <button class="btn btn-warn" onclick="heroReset()">↺ Reset</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let heroBits = [0,0,0,0,0,0,0,0];
+let heroAnimTimer = null;
+
+function renderHeroBits() {
+  const container = document.getElementById('hero-bits');
+  container.innerHTML = '';
+  heroBits.forEach((b, i) => {
+    const bit = document.createElement('div');
+    bit.className = 'bit ' + (b ? 'one' : 'zero');
+    bit.textContent = b;
+    bit.onclick = () => {
+      heroBits[i] = 1 - heroBits[i];
+      renderHeroBits();
+      updateHeroValues();
+    };
+    // Add bit position label below
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display: flex; flex-direction: column; align-items: center; gap: 4px;';
+    const lbl = document.createElement('div');
+    lbl.className = 'bit-label';
+    lbl.textContent = 7 - i;
+    wrap.appendChild(bit);
+    wrap.appendChild(lbl);
+    container.appendChild(wrap);
+  });
+}
+
+function updateHeroValues() {
+  const dec = parseInt(heroBits.join(''), 2);
+  const hex = '0x' + dec.toString(16).toUpperCase().padStart(2, '0');
+  const bin = heroBits.join('');
+  document.getElementById('hero-dec').textContent = dec;
+  document.getElementById('hero-hex').textContent = hex;
+  document.getElementById('hero-bin').textContent = bin;
+  // Add subtle animation
+  ['hero-dec', 'hero-hex', 'hero-bin'].forEach(id => {
+    const el = document.getElementById(id);
+    el.style.transform = 'scale(1.1)';
+    setTimeout(() => el.style.transform = 'scale(1)', 150);
+  });
+}
+
+function heroRandom() {
+  heroBits = heroBits.map(() => Math.random() < 0.5 ? 0 : 1);
+  renderHeroBits();
+  updateHeroValues();
+}
+
+function heroIncrement() {
+  let dec = parseInt(heroBits.join(''), 2);
+  dec = (dec + 1) % 256;
+  heroBits = dec.toString(2).padStart(8, '0').split('').map(Number);
+  renderHeroBits();
+  updateHeroValues();
+}
+
+function heroDecrement() {
+  let dec = parseInt(heroBits.join(''), 2);
+  dec = (dec - 1 + 256) % 256;
+  heroBits = dec.toString(2).padStart(8, '0').split('').map(Number);
+  renderHeroBits();
+  updateHeroValues();
+}
+
+function heroAnimate() {
+  if (heroAnimTimer) {
+    clearInterval(heroAnimTimer);
+    heroAnimTimer = null;
+    return;
+  }
+  let dec = 0;
+  heroAnimTimer = setInterval(() => {
+    heroBits = dec.toString(2).padStart(8, '0').split('').map(Number);
+    renderHeroBits();
+    updateHeroValues();
+    dec = (dec + 1) % 256;
+    if (dec === 0) {
+      clearInterval(heroAnimTimer);
+      heroAnimTimer = null;
+    }
+  }, 200);
+}
+
+function heroReset() {
+  if (heroAnimTimer) { clearInterval(heroAnimTimer); heroAnimTimer = null; }
+  heroBits = [0,0,0,0,0,0,0,0];
+  renderHeroBits();
+  updateHeroValues();
+}
+
+// Smooth scale transition for value displays
+['hero-dec', 'hero-hex', 'hero-bin'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.style.transition = 'transform 0.15s ease-out';
+});
+
+renderHeroBits();
+updateHeroValues();
+</script>
 
 <!-- ============================== LÝ THUYẾT ============================== -->
 <h2>📖 Lý thuyết</h2>

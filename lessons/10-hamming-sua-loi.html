@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -223,17 +224,29 @@ new StepReveal('step-demo', steps);
 
   <!-- Tab 2: Click to flip -->
   <div class="tab-content">
-    <p>Đây là mã Hamming đúng <strong>1010010</strong>. Hãy <strong>click vào bất kỳ bit nào</strong> để "làm sai" nó — chương trình sẽ tự tính syndrome và chỉ ra vị trí lỗi.</p>
+    <p>Đây là mã Hamming đúng <strong>1010010</strong>. Hãy <strong>click vào bất kỳ bit nào</strong> để "làm sai" nó — chương trình sẽ tự tính syndrome và chỉ ra vị trí lỗi. Bạn cũng có thể nhập mã đúng khác (7 bit 0/1) để thử nghiệm.</p>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap: wrap; margin: 12px 0;">
+      <label for="flip-correct-input"><strong>Mã đúng (7 bit 0/1):</strong></label>
+      <input type="text" id="flip-correct-input" value="1010010" pattern="[01]{7}" maxlength="7" style="font-family: var(--font-mono); letter-spacing: 4px; font-size: 1.1rem; width: 130px;">
+      <button class="btn" onclick="flipSetCorrect()">Nạp mã đúng</button>
+      <button class="btn btn-ghost" onclick="flipReset()">↺ Đặt lại mã đúng</button>
+    </div>
+    <div class="callout callout-tip" style="margin-top: 8px;">
+      <div class="callout-title">💡 Hướng dẫn</div>
+      <p>Nhập 7 bit 0/1 vào ô trên, bấm <strong>"Nạp mã đúng"</strong> để tải. Sau đó bấm vào từng bit ở dưới để làm sai. Chương trình sẽ tính syndrome và chỉ ra (a) có lỗi không, (b) vị trí nào, (c) mã đã sửa.</p>
+    </div>
     <div id="flip-display" style="display:flex; justify-content:center; gap:8px; margin: 24px 0;"></div>
     <div id="flip-result"></div>
-    <button class="btn btn-ghost mt-2" onclick="flipReset()">↺ Đặt lại mã đúng</button>
   </div>
 
   <!-- Tab 3: Random practice -->
   <div class="tab-content">
-    <p>Chương trình tạo ngẫu nhiên 1 mã Hamming, rồi "làm sai" 1 bit (hoặc 0 bit). Bạn hãy tự tính syndrome và tìm vị trí lỗi, sau đó bấm "Xem đáp án".</p>
-    <button class="btn" onclick="randomProblem()">🎲 Tạo bài tập mới</button>
+    <p>Chương trình tạo ngẫu nhiên 1 mã Hamming H(7,4) hợp lệ, rồi "làm sai" đúng 1 bit (hoặc giữ nguyên). Bạn hãy tự tính syndrome, đoán vị trí bit bị sai (0 = không có lỗi), rồi nhập vào để kiểm tra.</p>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap: wrap; margin: 12px 0;">
+      <button class="btn" onclick="randomProblem()">🎲 Sinh đề mới</button>
+    </div>
     <div id="random-problem" class="mt-2"></div>
+    <div id="random-guess-area" class="mt-2 hidden"></div>
     <div id="random-answer" class="mt-2"></div>
   </div>
 </div>
@@ -329,6 +342,25 @@ C1(mới) = i1 ⊕ i2 ⊕ i4 = ${r.i1} ⊕ ${r.i2} ⊕ ${r.i4} = ${r.C1new}
 
 // Tab 2: Click to flip
 let flipBits = ['1','0','1','0','0','1','0'];
+let flipCorrectBits = ['1','0','1','0','0','1','0'];
+function flipSetCorrect() {
+  const inp = document.getElementById('flip-correct-input').value.trim();
+  if (!/^[01]{7}$/.test(inp)) {
+    document.getElementById('flip-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải nhập đúng 7 ký tự 0/1.</div>';
+    return;
+  }
+  // Verify it is a valid Hamming code (syndrome = 000)
+  const r = hammingSyndrome(inp);
+  if (r.hasError) {
+    document.getElementById('flip-result').innerHTML = `<div class="result-box error"><span class="result-label">Cảnh báo:</span> Mã "${inp}" không phải mã Hamming hợp lệ (syndrome = ${r.syndrome}, vị trí nghi lỗi = ${r.errorPos}). Vẫn nạp nhưng syndrome sẽ khác 0 ngay từ đầu. Bạn nên nạp 1 mã đúng (sinh từ Bài 9).</div>`;
+  } else {
+    document.getElementById('flip-result').innerHTML = '';
+  }
+  flipCorrectBits = inp.split('');
+  flipBits = inp.split('');
+  flipRender();
+  flipCompute();
+}
 function flipRender() {
   const display = document.getElementById('flip-display');
   if (!display) return;
@@ -346,6 +378,11 @@ function flipRender() {
     bitEl.style.cursor = 'pointer';
     bitEl.textContent = b;
     bitEl.title = `Vị trí ${pos} — click để đảo`;
+    // Highlight if different from correct
+    if (b !== flipCorrectBits[i]) {
+      bitEl.style.outline = '3px solid var(--accent)';
+      bitEl.style.outlineOffset = '2px';
+    }
     bitEl.onclick = () => {
       flipBits[i] = flipBits[i] === '0' ? '1' : '0';
       flipRender();
@@ -364,37 +401,61 @@ function flipRender() {
 }
 function flipCompute() {
   const out = document.getElementById('flip-result');
+  if (!out) return;
   const received = flipBits.join('');
   const r = hammingSyndrome(received);
   let html = `<div class="callout callout-theory"><div class="callout-title">📋 Mã hiện tại: ${received}</div>`;
-  html += `<p>C(mới) = ${r.Cnew}, C(nhận) = ${r.Creceived}</p>`;
-  html += `<p><strong>Syndrome = ${r.Cnew} ⊕ ${r.Creceived} = ${r.syndrome}</strong> (= ${r.errorPos} thập phân)</p></div>`;
+  html += `<p><strong>Bước 1: Tách bit dữ liệu & kiểm tra</strong></p>`;
+  html += `<div class="code-block">i4=${r.i4}, i3=${r.i3}, i2=${r.i2}, i1=${r.i1}
+C3(nhận)=${r.C3}, C2(nhận)=${r.C2}, C1(nhận)=${r.C1}</div>`;
+  html += `<p class="mt-2"><strong>Bước 2: Tính C(mới) từ bit dữ liệu nhận</strong></p>`;
+  html += `<div class="code-block">C3(mới) = i2⊕i3⊕i4 = ${r.i2}⊕${r.i3}⊕${r.i4} = ${r.C3new}
+C2(mới) = i1⊕i3⊕i4 = ${r.i1}⊕${r.i3}⊕${r.i4} = ${r.C2new}
+C1(mới) = i1⊕i2⊕i4 = ${r.i1}⊕${r.i2}⊕${r.i4} = ${r.C1new}
+→ C(mới) = ${r.Cnew}</div>`;
+  html += `<p class="mt-2"><strong>Bước 3: C(nhận) = ${r.Creceived}</strong> (đọc tại vị trí 4, 2, 1)</p>`;
+  html += `<p class="mt-2"><strong>Bước 4: Syndrome = C(mới) ⊕ C(nhận)</strong></p>`;
+  html += `<div class="code-block">  ${r.Cnew}
+⊕ ${r.Creceived}
+  ─────
+  ${r.syndrome}   (= ${r.errorPos} thập phân)</div>`;
+  html += `</div>`;
   if (r.hasError) {
     const fixed = hammingFix(received);
-    html += `<div class="result-box error"><span class="result-label">⚠️ Lỗi ở vị trí ${r.errorPos}</span>Đảo bit tại vị trí ${r.errorPos} → mã sửa = <strong>${fixed}</strong></div>`;
+    html += `<div class="result-box error"><span class="result-label">⚠️ Phát hiện lỗi!</span>Bit tại vị trí <strong>${r.errorPos}</strong> bị sai.</div>`;
+    html += `<p class="mt-2"><strong>Bước 5: Đảo bit tại vị trí ${r.errorPos}</strong> → mã sửa = <strong>${fixed}</strong></p>`;
+    // Check if fixed matches correct
+    if (fixed === flipCorrectBits.join('')) {
+      html += `<div class="result-box"><span class="result-label">✓ Đã sửa</span>Mã sửa = ${fixed} — khớp với mã đúng ban đầu!</div>`;
+    } else {
+      html += `<div class="result-box"><span class="result-label">Kết quả</span>Mã sửa = ${fixed} (lưu ý: mã đúng nạp vào không phải mã Hamming chuẩn nên kết quả có thể khác).</div>`;
+    }
   } else {
-    html += `<div class="result-box"><span class="result-label">✓ Không lỗi</span>Mã nguyên vẹn (đây là mã đúng 1010010).</div>`;
+    html += `<div class="result-box"><span class="result-label">✓ Không có lỗi</span>Syndrome = 000 → mã nguyên vẹn.</div>`;
   }
   out.innerHTML = html;
 }
 function flipReset() {
-  flipBits = ['1','0','1','0','0','1','0'];
+  flipBits = flipCorrectBits.slice();
   flipRender();
   flipCompute();
 }
 
 // Tab 3: Random practice
+let __currentProblem = null;
 function randomProblem() {
   const out = document.getElementById('random-problem');
+  const guessArea = document.getElementById('random-guess-area');
   const ansOut = document.getElementById('random-answer');
   ansOut.innerHTML = '';
+  guessArea.classList.add('hidden');
   // Generate random 4-bit data
   const i4 = Math.floor(Math.random()*2), i3 = Math.floor(Math.random()*2);
   const i2 = Math.floor(Math.random()*2), i1 = Math.floor(Math.random()*2);
   // Compute correct codeword
   const C3 = i2 ^ i3 ^ i4, C2 = i1 ^ i3 ^ i4, C1 = i1 ^ i2 ^ i4;
   let correct = `${i4}${i3}${i2}${C3}${i1}${C2}${C1}`;
-  // Randomly decide: 0 or 1 bit error
+  // Randomly decide: 0 or 1 bit error (50/50)
   const errBit = Math.floor(Math.random()*8); // 0-6 = flip 1 bit, 7 = no error
   let received = correct;
   let actualErrorPos = 0;
@@ -405,28 +466,84 @@ function randomProblem() {
     actualErrorPos = 7 - errBit;
   }
   const r = hammingSyndrome(received);
-  window.__currentProblem = { received, r, actualErrorPos };
-  let html = `<div class="callout callout-example"><div class="callout-title">📝 Bài tập</div>`;
-  html += `<p>Bên nhận nhận được mã Hamming: <strong>${received}</strong>.</p>`;
-  html += `<p>Hãy tính syndrome và cho biết: (a) có lỗi không? (b) nếu có, lỗi ở vị trí nào? (c) mã đã sửa là gì?</p>`;
-  html += `<button class="btn btn-ghost mt-2" onclick="document.getElementById('random-answer').classList.remove('hidden')">Xem đáp án</button></div>`;
+  __currentProblem = { received, r, actualErrorPos, correct };
+  let html = `<div class="callout callout-example"><div class="callout-title">📝 Đề bài tự sinh</div>`;
+  html += `<p>Bên nhận nhận được mã Hamming: <strong style="font-family: var(--font-mono); letter-spacing: 4px; font-size: 1.2rem;">${received}</strong></p>`;
+  html += `<p>Hãy tự tính syndrome (5 bước như lý thuyết), rồi trả lời: <strong>vị trí bit bị sai là bao nhiêu?</strong> (Nhập 0 nếu cho rằng không có lỗi, vị trí 1-7 nếu có lỗi.)</p>`;
+  html += `<p style="font-size:0.85rem; color: var(--text-secondary);"><em>Mẹo: tách bit → tính C(mới) → lấy C(nhận) → XOR → đổi sang thập phân.</em></p>`;
+  html += `</div>`;
   out.innerHTML = html;
-  let ansHtml = `<div class="callout callout-tip"><div class="callout-title">✓ Đáp án</div>`;
-  ansHtml += `<p><strong>(a) Syndrome = ${r.Cnew} ⊕ ${r.Creceived} = ${r.syndrome}</strong> (= ${r.errorPos} thập phân).</p>`;
-  if (r.hasError) {
-    const fixed = hammingFix(received);
-    ansHtml += `<p><strong>(b) Có lỗi!</strong> Bit tại vị trí <strong>${r.errorPos}</strong> bị sai.</p>`;
-    ansHtml += `<p><strong>(c) Mã đã sửa</strong> (đảo bit vị trí ${r.errorPos}): <strong>${fixed}</strong></p>`;
-  } else {
-    ansHtml += `<p><strong>(b) Không có lỗi!</strong> Syndrome = 000.</p>`;
-    ansHtml += `<p><strong>(c) Mã giữ nguyên:</strong> ${received}</p>`;
-  }
-  ansHtml += `</div>`;
-  ansOut.innerHTML = ansHtml;
-  ansOut.classList.add('hidden');
+
+  // Show guess input
+  guessArea.classList.remove('hidden');
+  guessArea.innerHTML = `
+    <div class="callout callout-tip">
+      <div class="callout-title">✍️ Nhập câu trả lời của bạn</div>
+      <p>Nhập vị trí bit bị sai (0 = không lỗi, 1-7 = vị trí lỗi):</p>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top: 8px;">
+        <input type="number" id="random-guess" min="0" max="7" value="0" style="width:80px; text-align:center; font-family: var(--font-mono); font-size: 1.1rem;">
+        <button class="btn btn-success" onclick="checkRandomGuess()">Kiểm tra đáp án</button>
+      </div>
+    </div>
+  `;
 }
 
-// Initialize Tab 2
+function checkRandomGuess() {
+  if (!__currentProblem) return;
+  const ansOut = document.getElementById('random-answer');
+  const guessStr = document.getElementById('random-guess').value.trim();
+  const guess = parseInt(guessStr);
+  const { received, r, actualErrorPos, correct } = __currentProblem;
+
+  let html = `<div class="callout callout-tip"><div class="callout-title">🔍 Đáp án & giải thích chi tiết</div>`;
+
+  // Show full solution
+  html += `<p><strong>Bước 1: Tách bit từ mã nhận ${received}</strong></p>`;
+  html += `<div class="code-block">Vị trí:  7  6  5  4  3  2  1
+Ký hiệu: i4 i3 i2 C3 i1 C2 C1
+Giá trị: ${r.i4}  ${r.i3}  ${r.i2}  ${r.C3}  ${r.i1}  ${r.C2}  ${r.C1}
+→ i4=${r.i4}, i3=${r.i3}, i2=${r.i2}, i1=${r.i1}
+→ C3(nhận)=${r.C3}, C2(nhận)=${r.C2}, C1(nhận)=${r.C1}</div>`;
+
+  html += `<p class="mt-2"><strong>Bước 2: Tính C(mới) từ bit dữ liệu nhận</strong></p>`;
+  html += `<div class="code-block">C3(mới) = i2⊕i3⊕i4 = ${r.i2}⊕${r.i3}⊕${r.i4} = ${r.C3new}
+C2(mới) = i1⊕i3⊕i4 = ${r.i1}⊕${r.i3}⊕${r.i4} = ${r.C2new}
+C1(mới) = i1⊕i2⊕i4 = ${r.i1}⊕${r.i2}⊕${r.i4} = ${r.C1new}
+→ C(mới) = ${r.Cnew}</div>`;
+
+  html += `<p class="mt-2"><strong>Bước 3: Lấy C(nhận) = ${r.Creceived}</strong> (đọc tại vị trí 4, 2, 1)</p>`;
+
+  html += `<p class="mt-2"><strong>Bước 4: Syndrome = C(mới) ⊕ C(nhận)</strong></p>`;
+  html += `<div class="code-block">  ${r.Cnew}
+⊕ ${r.Creceived}
+  ─────
+  ${r.syndrome}   (= ${r.errorPos} thập phân)</div>`;
+
+  if (r.hasError) {
+    const fixed = hammingFix(received);
+    html += `<p class="mt-2"><strong>Bước 5: Có lỗi!</strong> Syndrome = ${r.errorPos} ≠ 0 → bit tại vị trí <strong>${r.errorPos}</strong> bị sai. Đảo bit → mã sửa = <strong>${fixed}</strong></p>`;
+    html += `<p><strong>Kiểm tra:</strong> Tính lại syndrome của mã "${fixed}":</p>`;
+    const r2 = hammingSyndrome(fixed);
+    html += `<div class="code-block">C(mới) = ${r2.Cnew}, C(nhận) = ${r2.Creceived}
+Syndrome = ${r2.Cnew} ⊕ ${r2.Creceived} = ${r2.syndrome} = 0 ✓ → Đã sửa đúng.</div>`;
+  } else {
+    html += `<p class="mt-2"><strong>Bước 5: Không có lỗi!</strong> Syndrome = 000 → mã nguyên vẹn, giữ nguyên.</p>`;
+  }
+  html += `</div>`;
+
+  // Compare with user's guess
+  if (isNaN(guess) || guess < 0 || guess > 7) {
+    html += `<div class="result-box error"><span class="result-label">Đầu vào không hợp lệ</span>Vui lòng nhập số từ 0 đến 7.</div>`;
+  } else if (guess === actualErrorPos) {
+    html += `<div class="result-box"><span class="result-label">🎉 Chính xác!</span>Bạn đoán vị trí ${guess}, đáp án đúng là vị trí ${actualErrorPos}. Xuất sắc!</div>`;
+  } else {
+    html += `<div class="result-box error"><span class="result-label">Chưa đúng</span>Bạn đoán vị trí ${guess}, nhưng đáp án đúng là vị trí <strong>${actualErrorPos}</strong>. Hãy xem lại phần giải thích chi tiết trên.</div>`;
+  }
+
+  ansOut.innerHTML = html;
+}
+
+// Initialize Tab 2 and Tab 3 on page load
 window.addEventListener('DOMContentLoaded', () => {
   flipRender();
   flipCompute();
@@ -437,90 +554,186 @@ window.addEventListener('DOMContentLoaded', () => {
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự tính syndrome và tìm vị trí lỗi trước, sau đó bấm "Xem đáp án". Mẹo: viết rõ từng bước ra giấy.</p>
+<p>Hãy tự tính syndrome và tìm vị trí lỗi trước, sau đó bấm "Xem đáp án" để đối chiếu từng bước. Mẹo: viết rõ từng bước ra giấy theo 5 bước đã học.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Mã đúng là 1010010. Nhận được <strong>1010110</strong> (sai 1 bit). Tìm vị trí sai và sửa.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-10-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-10-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Syndrome = C(mới) ⊕ C(nhận). C(mới) tính từ bit dữ liệu nhận (cùng công thức Bài 9), C(nhận) đọc trực tiếp tại vị trí 4, 2, 1. Giá trị thập phân của syndrome = vị trí bit bị sai. Sửa = đảo bit tại vị trí đó.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Tách 7 bit nhận được thành i4, i3, i2, C3, i1, C2, C1. Tính lại 3 bit kiểm tra từ dữ liệu. XOR với 3 bit nhận được để có syndrome. Đổi syndrome sang thập phân → đó chính là vị trí bit sai.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: Tách bit (đọc vị trí 7 → 1)</strong>
+  Mã nhận: 1 0 1 0 1 1 0
+  Vị trí:  7 6 5 4 3 2 1
+  Ký hiệu: i4 i3 i2 C3 i1 C2 C1
+  → i4=1, i3=0, i2=1, C3=0, i1=1, C2=1, C1=0
 
-<script>
-const exercises = [
-  {
-    question: "Mã đúng là 1010010. Nhận được <strong>1010110</strong> (sai 1 bit). Tìm vị trí sai và sửa.",
-    answer: `<strong>Bước 1: Tách bit</strong> (vị trí 7→1):<br>
-    i4=1, i3=0, i2=1, C3=0, i1=1 (nhận), C2=1, C1=0<br><br>
-    <strong>Bước 2: Tính C(mới):</strong><br>
-    C3(mới) = i2⊕i3⊕i4 = 1⊕0⊕1 = 0<br>
-    C2(mới) = i1⊕i3⊕i4 = 1⊕0⊕1 = 0<br>
-    C1(mới) = i1⊕i2⊕i4 = 1⊕1⊕1 = 1<br>
-    → C(mới) = 001<br><br>
-    <strong>Bước 3: C(nhận) = C3 C2 C1 = 0 1 0</strong><br><br>
-    <strong>Bước 4: Syndrome = 001 ⊕ 010 = 011 = 3</strong><br>
-    → Bit tại vị trí 3 (i1) bị sai.<br><br>
-    <strong>Bước 5: Đảo bit vị trí 3</strong> (từ 1 → 0):<br>
-    Mã sửa = <strong>1010010</strong> ✓`
-  },
-  {
-    question: "Mã đúng là 1010010. Nhận được <strong>1010011</strong> (sai 1 bit). Tìm vị trí sai và sửa.",
-    answer: `<strong>Bước 1: Tách bit</strong> (vị trí 7→1):<br>
-    i4=1, i3=0, i2=1, C3=0, i1=0, C2=1, C1=1 (nhận)<br><br>
-    <strong>Bước 2: Tính C(mới):</strong><br>
-    C3(mới) = 1⊕0⊕1 = 0<br>
-    C2(mới) = 0⊕0⊕1 = 1<br>
-    C1(mới) = 0⊕1⊕1 = 0<br>
-    → C(mới) = 010<br><br>
-    <strong>Bước 3: C(nhận) = 0 1 1</strong><br><br>
-    <strong>Bước 4: Syndrome = 010 ⊕ 011 = 001 = 1</strong><br>
-    → Bit tại vị trí 1 (C1) bị sai.<br><br>
-    <strong>Bước 5: Đảo bit vị trí 1</strong> (từ 1 → 0):<br>
-    Mã sửa = <strong>1010010</strong> ✓<br><br>
-    <em>Lưu ý: bit kiểm tra cũng có thể bị sai — syndrome vẫn chỉ đúng vị trí!</em>`
-  },
-  {
-    question: "Mã đúng là 1010010. Nhận được <strong>1110010</strong> (sai 1 bit). Tìm vị trí sai và sửa.",
-    answer: `<strong>Bước 1: Tách bit</strong> (vị trí 7→1):<br>
-    i4=1, i3=1 (nhận), i2=1, C3=0, i1=0, C2=1, C1=0<br><br>
-    <strong>Bước 2: Tính C(mới):</strong><br>
-    C3(mới) = 1⊕1⊕1 = 1<br>
-    C2(mới) = 0⊕1⊕1 = 0<br>
-    C1(mới) = 0⊕1⊕1 = 0<br>
-    → C(mới) = 100<br><br>
-    <strong>Bước 3: C(nhận) = 0 1 0</strong><br><br>
-    <strong>Bước 4: Syndrome = 100 ⊕ 010 = 110 = 6</strong><br>
-    → Bit tại vị trí 6 (i3) bị sai.<br><br>
-    <strong>Bước 5: Đảo bit vị trí 6</strong> (từ 1 → 0):<br>
-    Mã sửa = <strong>1010010</strong> ✓`
-  },
-  {
-    question: "Nhận được <strong>1010010</strong>. Có lỗi không? Nếu có, hãy sửa.",
-    answer: `<strong>Bước 1: Tách bit</strong> (vị trí 7→1):<br>
-    i4=1, i3=0, i2=1, C3=0, i1=0, C2=1, C1=0<br><br>
-    <strong>Bước 2: Tính C(mới):</strong><br>
-    C3(mới) = 1⊕0⊕1 = 0<br>
-    C2(mới) = 0⊕0⊕1 = 1<br>
-    C1(mới) = 0⊕1⊕1 = 0<br>
-    → C(mới) = 010<br><br>
-    <strong>Bước 3: C(nhận) = 0 1 0</strong><br><br>
-    <strong>Bước 4: Syndrome = 010 ⊕ 010 = 000 = 0</strong><br>
-    → <strong>Không có lỗi!</strong> Mã nguyên vẹn.<br><br>
-    <strong>Mã đúng = 1010010</strong> (giữ nguyên)<br><br>
-    <em>Đây chính là mã gốc từ Bài 9 — syndrome = 000 xác nhận không có bit nào bị lật.</em>`
-  }
-];
+<strong>Bước 2: Tính C(mới) từ bit dữ liệu nhận</strong>
+  C3(mới) = i2⊕i3⊕i4 = 1⊕0⊕1 = 0
+  C2(mới) = i1⊕i3⊕i4 = 1⊕0⊕1 = 0
+  C1(mới) = i1⊕i2⊕i4 = 1⊕1⊕1 = 1
+  → C(mới) = 001
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+<strong>Bước 3: Lấy C(nhận) từ mã nhận (đọc tại vị trí 4, 2, 1)</strong>
+  C(nhận) = C3 C2 C1 = 0 1 0 = 010
+
+<strong>Bước 4: Tính Syndrome = C(mới) ⊕ C(nhận)</strong>
+    001
+  ⊕ 010
+    ─────
+    011   (= 3 thập phân)
+  → Bit tại vị trí 3 (i1) bị sai.
+
+<strong>Bước 5: Sửa lỗi — đảo bit tại vị trí 3 (i1: 1 → 0)</strong>
+  Vị trí:  7  6  5  4  3  2  1
+  Nhận:    1  0  1  0  1→0 1  0
+  Sửa:     1  0  1  0  0  1  0</div>
+    <p><strong>✓ Kết quả:</strong> Mã đã sửa = <strong>1010010</strong> (khớp mã đúng ban đầu) ✓</p>
+    <p><strong>🔍 Kiểm tra (tính lại syndrome của mã đã sửa):</strong></p>
+    <div class="code-block">Mã sửa 1010010 → i4=1, i3=0, i2=1, i1=0
+C3(mới) = 1⊕0⊕1 = 0
+C2(mới) = 0⊕0⊕1 = 1
+C1(mới) = 0⊕1⊕1 = 0
+C(mới) = 010
+C(nhận) = 010 (đọc tại vị trí 4, 2, 1)
+Syndrome = 010 ⊕ 010 = 000 = 0 ✓
+→ Không còn lỗi. Mã đã được sửa đúng.</div>
+  </div>
+</div>
+
+<!-- Bài 2 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Mã đúng là 1010010. Nhận được <strong>1010011</strong> (sai 1 bit). Tìm vị trí sai và sửa.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-10-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-10-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Tương tự Bài 1 — Syndrome = C(mới) ⊕ C(nhận). C(mới) tính từ dữ liệu, C(nhận) đọc tại vị trí 4, 2, 1. <em>Lưu ý: bit kiểm tra cũng có thể bị sai — syndrome vẫn chỉ đúng vị trí!</em></p>
+    <p><strong>💡 Cách áp dụng:</strong> Tách bit → tính C(mới) → lấy C(nhận) → XOR → đổi sang thập phân. Sửa bit tại vị trí đó (kể cả khi đó là bit kiểm tra).</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: Tách bit (đọc vị trí 7 → 1)</strong>
+  Mã nhận: 1 0 1 0 0 1 1
+  → i4=1, i3=0, i2=1, C3=0, i1=0, C2=1, C1=1
+
+<strong>Bước 2: Tính C(mới)</strong>
+  C3(mới) = i2⊕i3⊕i4 = 1⊕0⊕1 = 0
+  C2(mới) = i1⊕i3⊕i4 = 0⊕0⊕1 = 1
+  C1(mới) = i1⊕i2⊕i4 = 0⊕1⊕1 = 0
+  → C(mới) = 010
+
+<strong>Bước 3: Lấy C(nhận)</strong>
+  C(nhận) = C3 C2 C1 = 0 1 1 = 011
+
+<strong>Bước 4: Syndrome = C(mới) ⊕ C(nhận)</strong>
+    010
+  ⊕ 011
+    ─────
+    001   (= 1 thập phân)
+  → Bit tại vị trí 1 (C1) bị sai.
+  (Đây là bit kiểm tra — không phải bit dữ liệu, nhưng syndrome vẫn chỉ đúng!)
+
+<strong>Bước 5: Sửa lỗi — đảo bit tại vị trí 1 (C1: 1 → 0)</strong>
+  Vị trí:  7  6  5  4  3  2  1
+  Nhận:    1  0  1  0  0  1  1→0
+  Sửa:     1  0  1  0  0  1  0</div>
+    <p><strong>✓ Kết quả:</strong> Mã đã sửa = <strong>1010010</strong> ✓</p>
+    <p><strong>🔍 Kiểm tra:</strong></p>
+    <div class="code-block">Mã sửa 1010010 → i4=1, i3=0, i2=1, i1=0
+C(mới) = (1⊕0⊕1, 0⊕0⊕1, 0⊕1⊕1) = (0, 1, 0) = 010
+C(nhận) = 010
+Syndrome = 010 ⊕ 010 = 000 = 0 ✓
+→ Mã đã được sửa đúng.</div>
+  </div>
+</div>
+
+<!-- Bài 3 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Mã đúng là 1010010. Nhận được <strong>1110010</strong> (sai 1 bit). Tìm vị trí sai và sửa.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-10-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-10-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Syndrome = C(mới) ⊕ C(nhận). Vị trí bit sai = giá trị thập phân của syndrome. Sửa = đảo bit.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Lần này bit bị sai là bit dữ liệu (i3 ở vị trí 6). Quá trình tính vẫn như thường — syndrome sẽ chỉ ra chính xác vị trí 6.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: Tách bit (đọc vị trí 7 → 1)</strong>
+  Mã nhận: 1 1 1 0 0 1 0
+  → i4=1, i3=1, i2=1, C3=0, i1=0, C2=1, C1=0
+  (So mã đúng: i3 nhận = 1, nhưng i3 đúng = 0 → nghi ngờ i3 sai)
+
+<strong>Bước 2: Tính C(mới)</strong>
+  C3(mới) = i2⊕i3⊕i4 = 1⊕1⊕1 = 1
+  C2(mới) = i1⊕i3⊕i4 = 0⊕1⊕1 = 0
+  C1(mới) = i1⊕i2⊕i4 = 0⊕1⊕1 = 0
+  → C(mới) = 100
+
+<strong>Bước 3: Lấy C(nhận)</strong>
+  C(nhận) = C3 C2 C1 = 0 1 0 = 010
+
+<strong>Bước 4: Syndrome = C(mới) ⊕ C(nhận)</strong>
+    100
+  ⊕ 010
+    ─────
+    110   (= 6 thập phân)
+  → Bit tại vị trí 6 (i3) bị sai. (Khớp với dự đoán!)
+
+<strong>Bước 5: Sửa lỗi — đảo bit tại vị trí 6 (i3: 1 → 0)</strong>
+  Vị trí:  7  6  5  4  3  2  1
+  Nhận:    1  1→0 1  0  0  1  0
+  Sửa:     1  0  1  0  0  1  0</div>
+    <p><strong>✓ Kết quả:</strong> Mã đã sửa = <strong>1010010</strong> ✓</p>
+    <p><strong>🔍 Kiểm tra:</strong></p>
+    <div class="code-block">Mã sửa 1010010 → i4=1, i3=0, i2=1, i1=0
+C(mới) = (1⊕0⊕1, 0⊕0⊕1, 0⊕1⊕1) = (0, 1, 0) = 010
+C(nhận) = 010
+Syndrome = 010 ⊕ 010 = 000 = 0 ✓
+→ Mã đã được sửa đúng.</div>
+  </div>
+</div>
+
+<!-- Bài 4 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Nhận được <strong>1010010</strong>. Có lỗi không? Nếu có, hãy sửa.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-10-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-10-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Syndrome = C(mới) ⊕ C(nhận). Nếu syndrome = 000 → không có lỗi. Nếu ≠ 000 → có lỗi, giá trị thập phân = vị trí bit sai.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Tách bit, tính C(mới), lấy C(nhận), XOR. Nếu kết quả = 000 thì mã nguyên vẹn, không cần sửa gì cả. Đây là trường hợp lý tưởng — mã đúng truyền đi không lỗi.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: Tách bit (đọc vị trí 7 → 1)</strong>
+  Mã nhận: 1 0 1 0 0 1 0
+  → i4=1, i3=0, i2=1, C3=0, i1=0, C2=1, C1=0
+
+<strong>Bước 2: Tính C(mới)</strong>
+  C3(mới) = i2⊕i3⊕i4 = 1⊕0⊕1 = 0
+  C2(mới) = i1⊕i3⊕i4 = 0⊕0⊕1 = 1
+  C1(mới) = i1⊕i2⊕i4 = 0⊕1⊕1 = 0
+  → C(mới) = 010
+
+<strong>Bước 3: Lấy C(nhận)</strong>
+  C(nhận) = C3 C2 C1 = 0 1 0 = 010
+
+<strong>Bước 4: Syndrome = C(mới) ⊕ C(nhận)</strong>
+    010
+  ⊕ 010
+    ─────
+    000   (= 0 thập phân)
+  → KHÔNG có lỗi! Mã nguyên vẹn.
+
+<strong>Bước 5: Vì syndrome = 0, không cần sửa gì.</strong>
+  Mã giữ nguyên: 1010010</div>
+    <p><strong>✓ Kết quả:</strong> Mã đúng = <strong>1010010</strong> (giữ nguyên, không có lỗi)</p>
+    <p><strong>🔍 Kiểm tra & nhận xét:</strong></p>
+    <div class="code-block">C(mới) = C(nhận) = 010 → mọi bit kiểm tra đều khớp.
+→ Đây là mã đúng chuẩn (chính là mã gốc sinh từ Bài 9 với i4i3i2i1 = 1010).
+→ Quá trình truyền không gây lỗi nào.
+
+Nhận xét: Mã 1010010 chính là mã gốc được sinh ra từ Bài 9.
+Đây là trường hợp lý tưởng — Syndrome = 000 cho biết mã truyền
+nguyên vẹn đến nơi, không cần sửa.</div>
+  </div>
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -690,6 +903,5 @@ new Quiz('quiz-1', [
   <a href="11-dia-chi-vat-ly.html" class="btn">Bài 11: Địa chỉ vật lý 8088 →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

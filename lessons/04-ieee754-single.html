@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -534,92 +535,201 @@ function convertHexToFloat() {
 
 <p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
 
-<div id="practice-exercises"></div>
+<div id="practice-exercises">
 
-<script>
-const exercises = [
-  {
-    question: "Đổi <strong>0.5₁₀</strong> sang IEEE 754 Single Precision (32 bit).",
-    answer: `Bước 1: 0.5 × 2 = 1.0 → lấy 1, còn 0 → DỪNG<br>
-    → 0.5₁₀ = 0.1₂<br>
-    <br>
-    Bước 2 — Chuẩn hóa: 0.1 = 1.0 × 2^(−1), k = −1<br>
-    <br>
-    Bước 3 — E = −1 + 127 = 126 = 01111110₂<br>
-    <br>
-    Bước 4 — F = phần sau dấu phẩy của 1.0 = (không có gì) → pad 23 số 0<br>
-    F = 00000000000000000000000<br>
-    <br>
-    Bước 5 — S = 0, ghép:<br>
-    0 | 01111110 | 00000000000000000000000<br>
-    = 00111111000000000000000000000000₂<br>
-    <br>
-    Hexa (gom 4 bit): 0011 1111 0000 0000 0000 0000 0000 0000<br>
-    → <strong>0x3F000000</strong>`
-  },
-  {
-    question: "Đổi <strong>1.0₁₀</strong> sang IEEE 754 Single Precision. Đây có phải số đặc biệt không?",
-    answer: `Bước 1: 1 = 1₂, phần lẻ = 0<br>
-    → 1.0₁₀ = 1.0₂<br>
-    <br>
-    Bước 2 — Chuẩn hóa: 1.0 = 1.0 × 2^0, k = 0<br>
-    (bit 1 đã ở trước dấu phẩy, không cần dịch)<br>
-    <br>
-    Bước 3 — E = 0 + 127 = 127 = 01111111₂<br>
-    <br>
-    Bước 4 — F = 0 (không có phần lẻ) → pad 23 số 0<br>
-    <br>
-    Bước 5 — Ghép:<br>
-    0 | 01111111 | 00000000000000000000000<br>
-    = 00111111100000000000000000000000₂<br>
-    <br>
-    Hexa: 0011 1111 1000 0000 ... → <strong>0x3F800000</strong><br>
-    <br>
-    Đây là số "chuẩn" (normalized) — không phải số đặc biệt. Số 0 sẽ có E = 0 và F = 0.`
-  },
-  {
-    question: "Khôi phục số thực từ IEEE 754: <strong>0x42C80000</strong>.",
-    answer: `Đổi 0x42C80000 sang nhị phân 32 bit:<br>
-    42C80000 = 0100 0010 1100 1000 0000 0000 0000 0000<br>
-    → 01000010110010000000000000000000₂<br>
-    <br>
-    Tách:<br>
-    S = 0 → dương<br>
-    E = 10000101 = 133 → e = 133 − 127 = 6<br>
-    F = 10010000000000000000000<br>
-    <br>
-    1.F = 1.1001₂ = 1 + 1·2^(−1) + 0 + 0 + 1·2^(−4)<br>
-        = 1 + 0.5 + 0.0625 = 1.5625<br>
-    <br>
-    X = (+1) × 2^6 × 1.5625 = 64 × 1.5625 = <strong>100.0</strong>`
-  },
-  {
-    question: "Mantissa 1.F có bit 1 ngầm định phía trước. Nếu bỏ qua quy ước này (lưu cả bit 1), sẽ mất gì?",
-    answer: `Nếu lưu cả bit 1 phía trước F, ta sẽ tốn thêm 1 bit nhưng không được thêm thông tin (vì bit đó luôn = 1 với mọi số chuẩn hóa).<br>
-    <br>
-    Mất 1 bit → F chỉ còn 22 bit hiệu dụng thay vì 23 → độ chính xác giảm một nửa (mất 1 bit có nghĩa).<br>
-    <br>
-    Quy ước "1 ngầm định" cho phép tận dụng tối đa 23 bit của F để lưu phần định trị → tối ưu độ chính xác. Đây là một "thủ thuật" tuyệt vời của chuẩn IEEE 754.<br>
-    <br>
-    Ngoại lệ: số 0 (và số denormal) không có bit 1 ngầm định, phải dùng mã đặc biệt (E = 0).`
-  }
-];
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 1</div>
+    <p>Đổi <strong>0.5₁₀</strong> sang IEEE 754 Single Precision (32 bit).</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex4-1').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex4-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> Quy trình 5 bước — (1) Dec → Bin; (2) chuẩn hóa $1.xxxxx \times 2^k$; (3) $E = k + 127$; (4) $F$ = phần sau dấu phẩy của mantissa, pad 0 bên phải cho đủ 23 bit; (5) ghép S | E | F.</p>
+      <p><strong>💡 Cách áp dụng:</strong> 0.5 là số dương → S = 0. Phần nguyên = 0, phần lẻ = 0.5. Đổi phần lẻ sang nhị phân bằng cách nhân 2. Chuẩn hóa để có dạng $1.xxxxx \times 2^k$. Tính E, F, ghép 32 bit.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Dec → Bin (phần lẻ nhân 2 lấy nguyên):
+  0.5 × 2 = 1.0   → lấy 1, còn 0   → DỪNG
+  → 0.5₁₀ = 0.1₂
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
+Bước 2 — Chuẩn hóa (đưa về dạng 1.xxxxx × 2^k):
+  0.1₂ = 1.0₂ × 2⁻¹
+  (dịch dấu phẩy sang PHẢI 1 vị trí để có bit 1 trước dấu phẩy)
+  → mantissa m = 1.0, số mũ thực k = −1
+
+Bước 3 — Tính E = k + 127:
+  E = −1 + 127 = 126
+  126 đổi sang 8 bit: 01111110₂
+  (kiểm tra: 01111110 = 64+32+16+8+4+2 = 126 ✓)
+
+Bước 4 — Lấy F (23 bit, pad 0 bên PHẢI):
+  Mantissa = 1.0 → bỏ bit "1" trước dấu phẩy (ngầm định)
+  → phần sau dấu phẩy = (rỗng) → pad 23 số 0
+  F = 00000000000000000000000
+
+Bước 5 — Ghép S | E | F và đổi sang hexa:
+  S = 0 (vì 0.5 > 0)
+  S |    E (8 bit)    |          F (23 bit)            |
+  0 | 0 1 1 1 1 1 1 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+  = 00111111000000000000000000000000₂
+
+  Hexa (gom 4 bit từ phải):
+  0011 1111 0000 0000 0000 0000 0000 0000
+   3    F    0    0    0    0    0    0
+  → <strong>0x3F000000</strong></pre>
+      <p><strong>✓ Kết quả:</strong> 0.5₁₀ = <strong>0 01111110 00000000000000000000000₂</strong> = <strong>0x3F000000</strong></p>
+      <p><strong>🔍 Kiểm tra (khôi phục từ IEEE 754 về thập phân):</strong></p>
+      <pre>S = 0   → dấu dương (+1)
+E = 01111110₂ = 126 → e = E − 127 = 126 − 127 = −1
+F = 0   → 1.F = 1.0
+
+X = (−1)⁰ × 2⁻¹ × 1.0
+  = (+1) × 0.5 × 1.0
+  = 0.5 ✓</pre>
     </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 2</div>
+    <p>Đổi <strong>1.0₁₀</strong> sang IEEE 754 Single Precision. Đây có phải số đặc biệt không?</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex4-2').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex4-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> Cùng 5 bước như bài 1. Công thức khôi phục: $X = (-1)^S \cdot 2^{E-B} \cdot 1.F$ với $B = 127$.</p>
+      <p><strong>💡 Cách áp dụng:</strong> 1.0 là số dương → S = 0. Phần nguyên = 1, phần lẻ = 0. Đổi phần nguyên sang nhị phân. Vì đã có bit 1 trước dấu phẩy → không cần dịch, k = 0.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Dec → Bin:
+  Phần nguyên 1 = 1₂
+  Phần lẻ 0 → không cần nhân 2
+  → 1.0₁₀ = 1.0₂
+
+Bước 2 — Chuẩn hóa:
+  1.0 đã có bit 1 trước dấu phẩy → KHÔNG cần dịch.
+  1.0 = 1.0 × 2⁰, số mũ thực k = 0
+
+Bước 3 — Tính E = k + 127:
+  E = 0 + 127 = 127
+  127 đổi sang 8 bit: 01111111₂
+  (kiểm tra: 01111111 = 64+32+16+8+4+2+1 = 127 ✓)
+
+Bước 4 — Lấy F (23 bit):
+  Mantissa = 1.0 → bỏ bit "1" trước dấu phẩy (ngầm định)
+  → phần sau dấu phẩy = 0 → pad 23 số 0
+  F = 00000000000000000000000
+
+Bước 5 — Ghép S | E | F:
+  0 | 01111111 | 00000000000000000000000
+  = 00111111100000000000000000000000₂
+
+  Hexa (gom 4 bit):
+  0011 1111 1000 0000 0000 0000 0000 0000
+   3    F    8    0    0    0    0    0
+  → <strong>0x3F800000</strong></pre>
+      <p><strong>✓ Kết quả:</strong> 1.0₁₀ = <strong>0 01111111 00000000000000000000000₂</strong> = <strong>0x3F800000</strong></p>
+      <p><strong>🔍 Kiểm tra &amp; trả lời câu hỏi:</strong></p>
+      <pre>Kiểm tra:
+  S = 0, E = 127 → e = 0, F = 0 → 1.F = 1.0
+  X = (+1) × 2⁰ × 1.0 = 1.0 ✓
+
+Đây có phải số đặc biệt?
+  E = 127 ∈ [1; 254] → số "bình thường" (normalized).
+  → KHÔNG phải số đặc biệt.
+
+  Số đặc biệt trong IEEE 754:
+  • E = 0, F = 0   → số 0 (có +0 và −0)
+  • E = 0, F ≠ 0   → số denormal (cực nhỏ)
+  • E = 255, F = 0 → ±∞ (vô cực)
+  • E = 255, F ≠ 0 → NaN (Not a Number)
+  1.0 không rơi vào trường hợp nào trên → số thường.</pre>
+    </div>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 3</div>
+    <p>Khôi phục số thực từ IEEE 754: <strong>0x42C80000</strong>.</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex4-3').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex4-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> $X = (-1)^S \cdot 2^{E-B} \cdot 1.F$ với $B = 127$. Quy trình: đổi hex → 32 bit, tách S|E|F, tính $e = E - 127$, tính $1.F$, nhân lại.</p>
+      <p><strong>💡 Cách áp dụng:</strong> Đổi 0x42C80000 sang 32 bit. Tách bit 31 (S), bit 30-23 (E), bit 22-0 (F). Tính $e = E - 127$. Tính mantissa = 1 + giá trị nhị phân của F. Tính X = (−1)^S × 2^e × 1.F.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Đổi 0x42C80000 sang 32 bit (mỗi chữ số hex = 4 bit):
+  4 → 0100,  2 → 0010,  C → 1100,  8 → 1000,
+  0 → 0000,  0 → 0000,  0 → 0000,  0 → 0000
+  → 01000010110010000000000000000000₂
+
+Bước 2 — Tách S | E | F:
+  bit 31 (S):  0
+  bit 30-23 (E): 10000101 = 1·128 + 1·4 + 1·1 = 133
+  bit 22-0  (F): 10010000000000000000000
+
+Bước 3 — Tính e và mantissa:
+  e = E − 127 = 133 − 127 = 6
+  1.F = 1.10010000...₂
+      = 1 + 1·2⁻¹ + 0·2⁻² + 0·2⁻³ + 1·2⁻⁴ + 0·... = 1 + 0.5 + 0.0625
+      = 1.5625
+
+Bước 4 — Tính X:
+  X = (−1)⁰ × 2⁶ × 1.5625
+    = (+1) × 64 × 1.5625
+    = 100.0</pre>
+      <p><strong>✓ Kết quả:</strong> 0x42C80000 = <strong>100.0₁₀</strong></p>
+      <p><strong>🔍 Kiểm tra (đổi ngược 100.0 sang IEEE 754 phải ra 0x42C80000):</strong></p>
+      <pre>Phần nguyên 100 = 64+32+4 = 1100100₂
+Phần lẻ 0
+→ 100.0 = 1100100.0₂
+
+Chuẩn hóa: dịch dấu phẩy trái 6 vị trí:
+  1100100.0 = 1.100100 × 2⁶, k = 6
+
+E = k + 127 = 6 + 127 = 133 = 10000101₂
+F = 100100 + pad 17 số 0 = 10010000000000000000000
+
+Ghép: 0 | 10000101 | 10010000000000000000000
+     = 01000010110010000000000000000000
+
+Hexa: 0100 0010 1100 1000 0000 0000 0000 0000
+       4    2    C    8    0    0    0    0
+→ 0x42C80000 ✓</pre>
+    </div>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 4</div>
+    <p>Mantissa 1.F có bit 1 ngầm định phía trước. Nếu bỏ qua quy ước này (lưu cả bit 1), sẽ mất gì?</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex4-4').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex4-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> Mantissa chuẩn hóa luôn có dạng $1.xxxxx$ (bit đầu luôn = 1). IEEE 754 KHÔNG lưu bit 1 này — chỉ lưu phần $xxxxx$ trong F, tận dụng tối đa 23 bit cho phần định trị.</p>
+      <p><strong>💡 Cách áp dụng:</strong> Phân tích cái được và cái mất nếu lưu cả bit 1. So sánh độ chính xác trong 2 trường hợp: có quy ước "1 ngầm định" vs không có.</p>
+      <p><strong>🧮 Phân tích từng khía cạnh:</strong></p>
+      <pre>Trường hợp A — Có quy ước "1 ngầm định" (chuẩn IEEE 754):
+  • F có 23 bit, toàn bộ dành cho phần lẻ (sau dấu phẩy).
+  • Mantissa hiệu dụng = 1.F → 24 bit có nghĩa (1 ngầm + 23 trong F).
+  • Độ chính xác: 24 bit ~ 2²⁴ = 16 777 216 giá trị khác nhau.
+  • Tương đương ~ 7 chữ số thập phân có nghĩa.
+
+Trường hợp B — Nếu lưu cả bit 1 (bỏ quy ước):
+  • Phải dùng 1 bit trong F để lưu bit "1" đầu tiên.
+  • Chỉ còn 22 bit cho phần lẻ thực sự.
+  • Mantissa hiệu dụng = 23 bit có nghĩa (1 + 22).
+  • Độ chính xác: 23 bit ~ 2²³ = 8 388 608 giá trị.
+  • Tương đương ~ 6.9 chữ số thập phân.
+
+So sánh:
+  • Mất 1 bit độ chính xác → giảm một nửa độ phân giải.
+  • Bit "1" đầu luôn = 1 với mọi số chuẩn hóa → lưu nó KHÔNG thêm thông tin.
+  • Lãng phí 1 bit "chết" → hiệu suất lưu trữ giảm.</pre>
+      <p><strong>✓ Kết quả:</strong> Nếu bỏ quy ước "1 ngầm định", sẽ <strong>mất 1 bit độ chính xác</strong> (giảm từ 24 bit có nghĩa xuống 23 bit), tương đương giảm một nửa độ phân giải của mantissa — mà không được thêm thông tin gì cả.</p>
+      <p><strong>🔍 Lưu ý quan trọng (trường hợp ngoại lệ):</strong></p>
+      <pre>Quy ước "1 ngầm định" chỉ áp dụng cho số CHUẨN HÓA (E ∈ [1; 254]).
+
+Ngoại lệ — các số không có bit 1 ngầm định:
+  • Số 0: E = 0, F = 0 (bit đầu không phải 1 vì 0 = 0.000...)
+  • Số denormal: E = 0, F ≠ 0 (số cực nhỏ, mantissa = 0.F thay vì 1.F)
+  • ±∞: E = 255, F = 0
+  • NaN: E = 255, F ≠ 0
+
+→ IEEE 754 dùng mã đặc biệt (E = 0 hoặc E = 255) cho các
+  trường hợp không tuân theo quy ước "1 ngầm định".</pre>
+    </div>
+  </div>
+
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -810,6 +920,5 @@ Phần lẻ 0.1875 (nhân 2 lấy phần nguyên, đọc xuôi):
   <a href="05-ieee754-am.html" class="btn">Bài 5: Số bù 1 →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

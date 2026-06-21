@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -373,74 +374,157 @@ function convertDecEndian() {
 
 <p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
 
-<div id="practice-exercises"></div>
+<div id="practice-exercises">
 
-<script>
-const exercises = [
-  {
-    question: "Cho số <strong>0xDEADBEEF</strong>. Viết thứ tự byte khi lưu theo Big Endian và Little Endian tại địa chỉ 0x2000.",
-    answer: `Tách 4 byte (MSB → LSB): DE AD BE EF<br>
-    <br>
-    <strong>Big Endian</strong> (giữ nguyên thứ tự):<br>
-    0x2000: DE   0x2001: AD   0x2002: BE   0x2003: EF<br>
-    <br>
-    <strong>Little Endian</strong> (đảo ngược byte):<br>
-    0x2000: EF   0x2001: BE   0x2002: AD   0x2003: DE`
-  },
-  {
-    question: "Khi dump bộ nhớ thấy: <code>0x1000: 78  0x1001: 56  0x1002: 34  0x1003: 12</code>. Nếu máy dùng Little Endian, số gốc là bao nhiêu?",
-    answer: `Little Endian: byte ở ô thấp nhất (0x1000) là LSB.<br>
-    <br>
-    Đọc từ ô thấp → cao: 78 56 34 12<br>
-    Vì LE lưu LSB trước, số gốc (MSB trước) = đảo ngược:<br>
-    → số gốc = 12 34 56 78 = <strong>0x12345678</strong> = 305 419 896₁₀`
-  },
-  {
-    question: "Số 16-bit <strong>0xBEEF</strong>. Viết Big Endian và Little Endian (chỉ 2 byte).",
-    answer: `Tách 2 byte (MSB → LSB): BE EF<br>
-    <br>
-    <strong>Big Endian</strong>:<br>
-    0x1000: BE   0x1001: EF<br>
-    <br>
-    <strong>Little Endian</strong> (đảo 2 byte):<br>
-    0x1000: EF   0x1001: BE<br>
-    <br>
-    Lưu ý: với số 16 bit, LE chỉ đảo 2 byte (không phải 4 byte như 32 bit).`
-  },
-  {
-    question: "Một chương trình C trên máy Intel gửi số <strong>0x12345678</strong> qua mạng TCP/IP. Trình bày các bước convert.",
-    answer: `Máy Intel = Little Endian. Mạng TCP/IP = Big Endian.<br>
-    <br>
-    Bước 1 — Trước khi gửi, gọi <code>htonl(0x12345678)</code>:<br>
-    Host (LE) → Network (BE) → đảo byte → 0x78563412<br>
-    <br>
-    Bước 2 — Trên mạng truyền: byte đi theo thứ tự BE:<br>
-    12 34 56 78 (đúng như người đọc)<br>
-    <br>
-    Bước 3 — Máy nhận (cũng Intel) gọi <code>ntohl(0x12345678)</code>:<br>
-    Network (BE) → Host (LE) → đảo byte → ra lại 0x12345678<br>
-    <br>
-    → Máy nhận được đúng số gốc 0x12345678 ✓<br>
-    <br>
-    <em>Lưu ý: nếu máy nhận là Big Endian (vd PowerPC), ntohl() không đảo gì, vẫn ra đúng số.</em>`
-  }
-];
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 1</div>
+    <p>Cho số <strong>0xDEADBEEF</strong>. Viết thứ tự byte khi lưu theo Big Endian và Little Endian tại địa chỉ 0x2000.</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex3-1').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex3-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong></p>
+      <ul style="padding-left: 20px;">
+        <li>Big Endian: MSB ở ô địa chỉ nhỏ (giữ nguyên thứ tự byte như con người đọc).</li>
+        <li>Little Endian: LSB ở ô địa chỉ nhỏ (đảo ngược thứ tự byte). <em>Chỉ đảo byte, không đảo bit trong byte.</em></li>
+      </ul>
+      <p><strong>💡 Cách áp dụng:</strong> Số 0xDEADBEEF có 8 chữ số hex = 4 byte. Tách thành 4 byte theo thứ tự MSB → LSB: DE, AD, BE, EF. Với BE điền tuần tự vào ô 0x2000→0x2003. Với LE đảo ngược thứ tự byte: EF, BE, AD, DE.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Tách 4 byte (MSB → LSB):
+  0xDEADBEEF = | DE | AD | BE | EF |
+                 ↑ MSB          ↑ LSB
+  (Mỗi 2 chữ số hex = 1 byte)
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
+Bước 2 — Big Endian (MSB ở ô thấp nhất, điền tuần tự):
+  0x2000: DE   ← MSB (ô thấp nhất)
+  0x2001: AD
+  0x2002: BE
+  0x2003: EF   ← LSB (ô cao nhất)
+
+Bước 3 — Little Endian (LSB ở ô thấp nhất, đảo byte):
+  0x2000: EF   ← LSB (ô thấp nhất)
+  0x2001: BE
+  0x2002: AD
+  0x2003: DE   ← MSB (ô cao nhất)</pre>
+      <p><strong>✓ Kết quả:</strong></p>
+      <ul style="padding-left: 20px;">
+        <li>Big Endian:    <strong>DE AD BE EF</strong></li>
+        <li>Little Endian: <strong>EF BE AD DE</strong></li>
+      </ul>
+      <p><strong>🔍 Kiểm tra (đọc LE từ ô thấp → cao và đảo ngược):</strong></p>
+      <pre>Đọc LE từ 0x2000 → 0x2003: EF BE AD DE (theo thứ tự LSB → MSB)
+Đảo ngược để có MSB → LSB: DE AD BE EF
+→ Số gốc = 0xDEADBEEF ✓</pre>
     </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 2</div>
+    <p>Khi dump bộ nhớ thấy: <code>0x1000: 78  0x1001: 56  0x1002: 34  0x1003: 12</code>. Nếu máy dùng Little Endian, số gốc là bao nhiêu?</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex3-2').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex3-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> Trên máy Little Endian, byte ở ô địa chỉ thấp nhất = LSB. Số gốc (viết theo MSB → LSB) = đọc byte theo thứ tự địa chỉ tăng dần, rồi đảo ngược.</p>
+      <p><strong>💡 Cách áp dụng:</strong> Đọc các byte theo thứ tự địa chỉ 0x1000 → 0x1003: 78, 56, 34, 12. Vì đây là LE nên thứ tự thu được là LSB → MSB. Đảo ngược để có MSB → LSB: 12, 34, 56, 78 → số gốc = 0x12345678.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Đọc byte theo thứ tự địa chỉ tăng dần:
+  0x1000: 78   ← ô thấp nhất → LSB
+  0x1001: 56
+  0x1002: 34
+  0x1003: 12   ← ô cao nhất → MSB
+  → Thứ tự thu được (LSB → MSB): 78 56 34 12
+
+Bước 2 — Đảo ngược để có MSB → LSB:
+  78 56 34 12  → đảo ngược →  12 34 56 78
+  → Số gốc = 0x12345678
+
+Bước 3 — Đổi 0x12345678 sang thập phân:
+  0x12345678
+  = 1·16⁷ + 2·16⁶ + 3·16⁵ + 4·16⁴ + 5·16³ + 6·16² + 7·16¹ + 8·16⁰
+  = 268435456 + 33554432 + 3145728 + 262144 + 20480 + 1536 + 112 + 8
+  = 305 419 896</pre>
+      <p><strong>✓ Kết quả:</strong> Số gốc = <strong>0x12345678</strong> = <strong>305 419 896₁₀</strong></p>
+      <p><strong>🔍 Kiểm tra (lưu 0x12345678 theo LE và dump phải khớp đề):</strong></p>
+      <pre>Tách 0x12345678 thành 4 byte (MSB → LSB): 12 34 56 78
+Little Endian = đảo byte: 78 56 34 12
+Điền vào ô nhớ:
+  0x1000: 78
+  0x1001: 56
+  0x1002: 34
+  0x1003: 12
+→ Khớp với dump đề bài ✓</pre>
+    </div>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 3</div>
+    <p>Số 16-bit <strong>0xBEEF</strong>. Viết Big Endian và Little Endian (chỉ 2 byte).</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex3-3').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex3-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> Số 16 bit = 2 byte. Cùng quy tắc như 32 bit: BE giữ nguyên thứ tự byte (MSB ở ô thấp), LE đảo byte (LSB ở ô thấp).</p>
+      <p><strong>💡 Cách áp dụng:</strong> Tách 0xBEEF thành 2 byte (MSB → LSB): BE, EF. Với BE điền tuần tự. Với LE đảo 2 byte (KHÔNG đảo 4 byte như 32 bit).</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Tách 2 byte (MSB → LSB):
+  0xBEEF = | BE | EF |
+             ↑ MSB  ↑ LSB
+
+Bước 2 — Big Endian (giữ nguyên thứ tự byte):
+  0x1000: BE   ← MSB (ô thấp)
+  0x1001: EF   ← LSB (ô cao)
+
+Bước 3 — Little Endian (đảo 2 byte):
+  0x1000: EF   ← LSB (ô thấp)
+  0x1001: BE   ← MSB (ô cao)</pre>
+      <p><strong>✓ Kết quả:</strong></p>
+      <ul style="padding-left: 20px;">
+        <li>Big Endian:    <strong>BE EF</strong></li>
+        <li>Little Endian: <strong>EF BE</strong></li>
+      </ul>
+      <p><strong>🔍 Kiểm tra &amp; Lưu ý quan trọng:</strong></p>
+      <pre>Đọc LE từ 0x1000 → 0x1001: EF BE → đảo ngược → BE EF → 0xBEEF ✓
+
+⚠️ Lưu ý: Với số 16 bit, LE chỉ đảo 2 byte (không phải 4 byte như 32 bit).
+   - 8 bit  → không cần đảo (chỉ 1 byte)
+   - 16 bit → đảo 2 byte
+   - 32 bit → đảo 4 byte
+   Số byte cần đảo = số byte của số.</pre>
+    </div>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 4</div>
+    <p>Một chương trình C trên máy Intel gửi số <strong>0x12345678</strong> qua mạng TCP/IP. Trình bày các bước convert.</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex3-4').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex3-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> TCP/IP dùng <em>network byte order</em> = Big Endian. Hàm <code>htonl()</code> convert host order → network order (32 bit). Hàm <code>ntohl()</code> convert ngược lại. Trên máy LE, các hàm này đảo byte. Trên máy BE, không làm gì.</p>
+      <p><strong>💡 Cách áp dụng:</strong> Máy Intel = LE. Trước khi gửi, gọi <code>htonl()</code> → hàm đảo byte từ LE sang BE. Khi nhận, máy nhận (cũng Intel) gọi <code>ntohl()</code> → hàm đảo byte từ BE sang LE.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Trước khi gửi, gọi htonl(0x12345678):
+  • Số gốc trong máy (host order, LE): 0x12345678
+  • Tách byte (MSB → LSB): 12 34 56 78
+  • Host (LE) → Network (BE): đảo byte → 78 56 34 12
+  • htonl() trả về: 0x78563412 (đại diện BE)
+
+Bước 2 — Trên mạng truyền theo BE (network byte order):
+  • Byte đi theo thứ tự: 12, 34, 56, 78
+    (MSB trước — giống con người đọc)
+  • Đây là chuẩn network để mọi máy hiểu được.
+
+Bước 3 — Máy nhận (Intel LE) gọi ntohl():
+  • Nhận được trên mạng (BE): 0x78563412
+  • Network (BE) → Host (LE): đảo byte → 0x12345678
+  • ntohl() trả về: 0x12345678 → đúng số gốc ✓</pre>
+      <p><strong>✓ Kết quả:</strong> Máy nhận được đúng số gốc <strong>0x12345678</strong>.</p>
+      <p><strong>🔍 Kiểm tra &amp; Lưu ý:</strong></p>
+      <pre>htonl và ntohl là hàm đối xứng: htonl(htonl(x)) = x.
+
+⚠️ Nếu máy nhận là Big Endian (vd PowerPC, SPARC):
+   • ntohl() trên máy BE không làm gì (vì network = host).
+   • Vẫn ra đúng số gốc 0x12345678.
+
+💡 Bài học: Code đúng là LUÔN gọi htonl/ntohl bất kể máy nào.
+   Không bao giờ được giả định Endianness của máy.</pre>
+    </div>
+  </div>
+
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -621,6 +705,5 @@ Giá trị:    0xDF     0x5E     0x34     0x04
   <a href="04-ieee754-single.html" class="btn">Bài 4: IEEE 754 →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

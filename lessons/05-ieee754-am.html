@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -284,10 +285,13 @@ new StepReveal('step-demo', steps);
 
   <!-- Tab 3: Bài tập random số âm -->
   <div class="tab-content">
-    <p>Hệ thống sẽ đưa ra một số thực âm ngẫu nhiên. Bạn hãy tự tính nhẩm rồi bấm "Xem đáp án".</p>
-    <button class="btn btn-success" onclick="generateRandomNeg()">🎲 Sinh bài mới</button>
-    <div id="rand-question" class="result-box mt-2"></div>
-    <button class="btn btn-ghost mt-1" onclick="showRandAnswer()">Xem đáp án</button>
+    <p>Bấm nút <strong>"Sinh đề ngẫu nhiên"</strong> để lấy 1 đề IEEE 754 số âm. Tự giải trên giấy rồi bấm <strong>"Hiện đáp án chi tiết"</strong> để xem lời giải 7 bước + kiểm tra.</p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+      <button class="btn btn-success" onclick="generateRandomNeg()">🎲 Sinh đề ngẫu nhiên</button>
+      <button class="btn btn-ghost" onclick="showRandAnswer()">👁 Hiện đáp án chi tiết</button>
+      <button class="btn btn-secondary" onclick="hideRandAnswer()">🙈 Ẩn đáp án</button>
+    </div>
+    <div id="rand-question" class="result-box mt-2">Chưa có đề — bấm "Sinh đề ngẫu nhiên" để bắt đầu.</div>
     <div id="rand-answer" class="mt-2 hidden"></div>
   </div>
 </div>
@@ -452,12 +456,21 @@ function generateRandomNeg() {
   // Pick a number that's negative AND likely has small magnitude (so k may be negative)
   const choices = [-0.5, -0.25, -0.75, -0.375, -0.125, -0.0625, -1.5, -2.5, -0.625, -0.4375, -3.25, -0.1875];
   currentRand = choices[Math.floor(Math.random() * choices.length)];
-  document.getElementById('rand-question').innerHTML = `<span class="result-label">Câu hỏi:</span>Biểu diễn <strong>X = ${currentRand}</strong> theo IEEE 754 Single Precision. Trình bày 7 bước.`;
+  document.getElementById('rand-question').innerHTML = `<span class="result-label">📝 Đề bài:</span>Biểu diễn số thực <strong>X = ${currentRand}</strong> theo chuẩn IEEE 754 Single Precision (32 bit). Trình bày chi tiết 7 bước và kiểm tra lại kết quả.`;
+  document.getElementById('rand-answer').classList.add('hidden');
+  document.getElementById('rand-answer').innerHTML = '';
+}
+
+function hideRandAnswer() {
   document.getElementById('rand-answer').classList.add('hidden');
 }
 
 function showRandAnswer() {
-  if (!currentRand) return;
+  if (currentRand === null) {
+    document.getElementById('rand-answer').classList.remove('hidden');
+    document.getElementById('rand-answer').innerHTML = '<div class="result-box error"><span class="result-label">Chưa có đề!</span> Hãy bấm "🎲 Sinh đề ngẫu nhiên" trước.</div>';
+    return;
+  }
   // Compute the answer
   const n = currentRand;
   const { sign, intPart, fracPart } = numToBinaryStr(n);
@@ -470,106 +483,252 @@ function showRandAnswer() {
   for (let i = 0; i < 32; i += 4) {
     hexStr += parseInt(full32.slice(i, i + 4), 2).toString(16).toUpperCase();
   }
+  const absN = Math.abs(n);
+  const absBin = intPart + (fracPart ? '.' + fracPart : '');
+  const shiftDir = k > 0 ? 'TRÁI' : (k < 0 ? 'PHẢI' : '(không dịch)');
+  const shiftMag = Math.abs(k);
+
+  // Build structured detailed answer
   const ans = document.getElementById('rand-answer');
   ans.classList.remove('hidden');
-  ans.innerHTML = `<div class="result-box">
-    <span class="result-label">Đáp án:</span>
-    <strong>${n}₁₀</strong><br>
-    B1: S = ${sign}, |X| = ${Math.abs(n)}<br>
-    B2: |X| = ${intPart}${fracPart ? '.' + fracPart : ''}₂<br>
-    B3: Chuẩn hóa → 1.${sig}₂ × 2^${k}<br>
-    B4: E = ${k} + 127 = ${E} = ${Ebin}₂<br>
-    B5: F = ${F}<br>
-    B6: Ghép → <strong>${sign}|${Ebin}|${F}</strong><br>
-    B7: Hex = <strong>0x${hexStr}</strong>
-  </div>`;
+  ans.style.background = 'var(--bg-elevated)';
+  ans.style.padding = '16px';
+  ans.style.borderRadius = '10px';
+  ans.style.borderLeft = '4px solid var(--success)';
+
+  let html = '';
+  html += `<p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> S = 1 (số âm) · E = k + 127 · chuẩn hóa |X| về dạng <code>1.F × 2^k</code> · ghép <code>S | E (8 bit) | F (23 bit)</code> · kiểm tra bằng <code>X = (−1)^S × 2^(E−127) × (1.F)</code>.</p>`;
+  html += `<p><strong>💡 Cách áp dụng:</strong> Vì X &lt; 0 → S = 1, tách riêng phần giá trị tuyệt đối |X| = ${absN}. Đổi |X| sang nhị phân (phần nguyên chia 2, phần lẻ nhân 2). Vì |X| ${absN < 1 ? '&lt; 1 → dịch dấu chấm sang PHẢI → k âm' : (absN >= 1 ? '≥ 1 → dịch dấu chấm sang TRÁI (nếu cần) → k dương hoặc 0' : '')}. Tính E = k + 127 (8 bit), tạo F (23 bit), ghép và đổi hex. Cuối cùng kiểm tra bằng công thức.</p>`;
+  html += `<p><strong>🧮 Tính toán từng bước:</strong></p>`;
+  html += `<div class="code-block">Bước 1 — Tách dấu:
+  X = ${n} &lt; 0  →  S = 1
+  Làm việc với |X| = ${absN}
+
+Bước 2 — Đổi |X| = ${absN} sang nhị phân:
+  Phần nguyên ${Math.floor(absN)} = ${intPart}_2
+${fracPart ? `  Phần lẻ ${absN - Math.floor(absN)} = 0.${fracPart}_2  (nhân 2 lấy phần nguyên)` : `  (không có phần lẻ)`}
+  → ${absN}_10 = ${absBin}_2
+
+Bước 3 — Chuẩn hóa về 1.F × 2^k:
+  Bit đầu của ${absBin}_2 ${k === 0 ? 'đã là 1 và đứng trước dấu chấm → đã chuẩn' : `chưa phải 1 đứng trước dấu chấm → dịch dấu chấm sang ${shiftDir} ${shiftMag} vị trí`}
+  → ${absBin}_2 = 1.${sig}_2 × 2^${k}   (k = ${k})
+
+Bước 4 — Tính E = k + 127:
+  E = ${k} + 127 = ${E}
+  E (8 bit) = ${Ebin}_2
+
+Bước 5 — Tạo F (23 bit):
+  Significand = 1.${sig}  →  bỏ bit 1 đầu (ngầm hiểu)  →  phần sau dấu chấm = "${sig}"
+  Pad thêm ${Math.max(0, 23 - sig.length)} số 0 phía sau cho đủ 23 bit:
+  F = ${F}
+
+Bước 6 — Ghép S | E | F:
+  S | E        | F
+  ${sign} | ${Ebin} | ${F}
+  = ${full32}   (32 bit)
+
+  Đổi sang hexa (gom 4 bit từ trái sang phải):
+  ${full32.match(/.{1,4}/g).join(' ')}
+  = 0x${hexStr}</div>`;
+  html += `<p><strong>✓ Kết quả:</strong> ${n}₁₀ = <code>${sign}|${Ebin}|${F}</code> = <strong>0x${hexStr}</strong></p>`;
+  // Verification step
+  const signVal = sign === 1 ? -1 : 1;
+  const pow2k = Math.pow(2, k);
+  const sigDec = 1 + (sig.split('').reduce((acc, b, i) => acc + (b === '1' ? Math.pow(2, -(i + 1)) : 0), 0));
+  const verify = signVal * pow2k * sigDec;
+  html += `<p><strong>🔍 Kiểm tra (đảo ngược):</strong></p>`;
+  html += `<div class="code-block">Áp công thức X = (−1)^S × 2^(E−127) × (1.F)_2
+  S = ${sign}  →  (−1)^${sign} = ${signVal}
+  E = ${E}  →  k = E − 127 = ${E} − 127 = ${k}
+  F = ${F}  →  1.F = 1.${sig}_2 = ${sigDec}
+
+  X = ${signVal} × 2^${k} × ${sigDec}
+  X = ${signVal} × ${pow2k} × ${sigDec}
+  X = ${verify}   ${Math.abs(verify - n) < 1e-9 ? '✓ (khớp đề bài)' : '✗ (sai!)'}</div>`;
+  html += `<div class="result-box"><span class="result-label">Kết luận:</span>${n}₁₀ = 0x${hexStr} = ${sign}|${Ebin}|${F} ✓</div>`;
+
+  ans.innerHTML = html;
 }
 </script>
 
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự giải trước (viết ra giấy), sau đó bấm "Xem đáp án" để đối chiếu.</p>
+<p>Hãy tự giải trước (viết ra giấy), sau đó bấm "Xem đáp án" để đối chiếu. Mỗi đáp án có <strong>công thức áp dụng</strong>, <strong>cách giải chi tiết từng bước</strong>, <strong>kết quả</strong> và <strong>phần kiểm tra</strong>.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1: −0.5 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Biểu diễn <strong>X = −0.5</strong> theo IEEE 754 Single Precision.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-5-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-5-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> S = 1 (số âm) · E = k + 127 · chuẩn hóa <code>1.F × 2^k</code> · ghép <code>S | E (8 bit) | F (23 bit)</code>.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Vì X &lt; 0 → S = 1, làm việc với |X| = 0.5. Đổi 0.5 sang nhị phân (nhân 2 lấy phần nguyên). Vì |X| &lt; 1 → dịch dấu chấm sang PHẢI → mũ k âm. Tính E, tạo F, ghép.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Tách dấu: X = −0.5 &lt; 0 → S = 1, |X| = 0.5
 
-<script>
-const exercises = [
-  {
-    question: "Biểu diễn <strong>X = −0.5</strong> theo IEEE 754 Single Precision.",
-    answer: `B1: S = 1, |X| = 0.5<br>
-    B2: 0.5 × 2 = 1.0 → lấy 1, còn 0 → DỪNG → 0.5₁₀ = 0.1₂<br>
-    B3: 0.1₂ → dịch dấu chấm sang PHẢI 1 vị trí → 1.0₂ × 2^(−1) → k = −1<br>
-    B4: E = −1 + 127 = 126 = 01111110₂<br>
-    B5: F = 00000000000000000000000 (chỉ còn "0" sau bit 1 đầu, pad 23 số 0)<br>
-    B6: 1 | 01111110 | 00000000000000000000000<br>
-    <br>
-    Hex: 1011 1111 0000 0000 0000 0000 0000 0000 = <strong>0xBF000000</strong><br>
-    <br>
-    Kiểm tra: X = (−1)^1 × 2^(126−127) × 1.0 = −1 × 0.5 × 1.0 = −0.5 ✓`
-  },
-  {
-    question: "Biểu diễn <strong>X = −1.5</strong> theo IEEE 754 Single Precision. (Lưu ý: số này &lt; 0 nhưng |X| &gt; 1 nên k DƯƠNG)",
-    answer: `B1: S = 1, |X| = 1.5<br>
-    B2: Phần nguyên 1 = 1₂; phần lẻ 0.5 = 0.1₂ → 1.5₁₀ = 1.1₂<br>
-    B3: 1.1₂ đã có bit 1 đầu → chuẩn hóa: 1.1₂ × 2^0 → k = 0 (KHÔNG dịch dấu chấm)<br>
-    B4: E = 0 + 127 = 127 = 01111111₂<br>
-    B5: F = 10000000000000000000000 (lấy phần sau dấu chấm "1", pad 22 số 0)<br>
-    B6: 1 | 01111111 | 10000000000000000000000<br>
-    <br>
-    Hex: 1011 1111 1100 0000 0000 0000 0000 0000 = <strong>0xBFC00000</strong><br>
-    <br>
-    Kiểm tra: X = (−1)^1 × 2^(127−127) × 1.5 = −1 × 1 × 1.5 = −1.5 ✓<br>
-    <br>
-    <em>Bài học: số thực âm không nhất thiết mũ âm! Phải xem |X| lớn hay nhỏ hơn 1.</em>`
-  },
-  {
-    question: "Biểu diễn <strong>X = −0.0625</strong> theo IEEE 754 Single Precision.",
-    answer: `B1: S = 1, |X| = 0.0625<br>
-    B2: 0.0625 × 2 = 0.125 → 0<br>
-    0.125 × 2 = 0.25 → 0<br>
-    0.25 × 2 = 0.5 → 0<br>
-    0.5 × 2 = 1.0 → 1, còn 0 → DỪNG<br>
-    → 0.0625₁₀ = 0.0001₂<br>
-    B3: 0.0001₂ → dịch dấu chấm sang PHẢI 4 vị trí → 1.0₂ × 2^(−4) → k = −4<br>
-    B4: E = −4 + 127 = 123 = 01111011₂<br>
-    B5: F = 00000000000000000000000<br>
-    B6: 1 | 01111011 | 00000000000000000000000<br>
-    <br>
-    Hex: 1011 1101 1000 0000 0000 0000 0000 0000 = <strong>0xBD800000</strong><br>
-    <br>
-    Kiểm tra: X = (−1)^1 × 2^(123−127) × 1.0 = −1 × 0.0625 × 1.0 = −0.0625 ✓`
-  },
-  {
-    question: "Đảo ngược: cho <strong>0xBF800000</strong>, tìm X thập phân.",
-    answer: `B1: 0xBF800000 = 1011 1111 1000 0000 0000 0000 0000 0000<br>
-    Tách: S = 1, E = 01111111 = 127, F = 00000000000000000000000<br>
-    <br>
-    B2: k = E − 127 = 127 − 127 = 0 (mũ trung tính!)<br>
-    <br>
-    B3: 1.F = 1.000...₀ = 1.0<br>
-    <br>
-    B4: X = (−1)^1 × 2^0 × 1.0 = −1 × 1 × 1.0 = <strong>−1.0</strong><br>
-    <br>
-    <em>Đây là biểu diễn của số nguyên −1 trong IEEE 754. E = 01111111 (= 127) là dấu hiệu nhận biết "mũ thực = 0", tức số có dạng 1.x (không cần dịch dấu chấm).</em>`
-  }
-];
+Bước 2 — Đổi |X| sang nhị phân (nhân 2 lấy phần nguyên):
+  0.5 × 2 = 1.0   → lấy 1, còn 0   → DỪNG
+  → 0.5₁₀ = 0.1₂
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem; line-height: 1.7;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+Bước 3 — Chuẩn hóa về 1.F × 2^k:
+  0.1₂ có bit 0 trước dấu chấm → dịch dấu chấm sang PHẢI 1 vị trí
+  → 0.1₂ = 1.0₂ × 2^(−1)   → k = −1
+
+Bước 4 — Tính E = k + 127:
+  E = −1 + 127 = 126 = 01111110₂   (8 bit)
+
+Bước 5 — Tạo F (23 bit):
+  Significand = 1.0 → bỏ bit 1 đầu → phần sau dấu chấm = "0"
+  Pad thêm 22 số 0 → F = 00000000000000000000000
+
+Bước 6 — Ghép S | E | F:
+  1 | 01111110 | 00000000000000000000000
+  = 10111111000000000000000000000000  (32 bit)
+
+  Đổi hex (gom 4 bit): 1011 1111 0000 0000 0000 0000 0000 0000
+  = 0xBF000000</div>
+    <p><strong>✓ Kết quả:</strong> −0.5₁₀ = 1|01111110|00000000000000000000000 = <strong>0xBF000000</strong></p>
+    <p><strong>🔍 Kiểm tra (đảo ngược):</strong></p>
+    <div class="code-block">X = (−1)^S × 2^(E−127) × (1.F)
+  = (−1)^1 × 2^(126−127) × 1.0
+  = (−1) × 2^(−1) × 1.0
+  = (−1) × 0.5 × 1.0
+  = −0.5   ✓ (khớp đề bài)</div>
+  </div>
+</div>
+
+<!-- Bài 2: −1.5 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Biểu diễn <strong>X = −1.5</strong> theo IEEE 754 Single Precision. <em>(Lưu ý: số này &lt; 0 nhưng |X| &gt; 1 nên k DƯƠNG — chứng tỏ "số âm" không đồng nghĩa "mũ âm")</em></p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-5-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-5-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> S = 1 (số âm) · E = k + 127 · chuẩn hóa <code>1.F × 2^k</code>. <em>Quy tắc dịch: |X| ≥ 1 → dịch TRÁI → k ≥ 0; |X| &lt; 1 → dịch PHẢI → k &lt; 0.</em></p>
+    <p><strong>💡 Cách áp dụng:</strong> S = 1 vì X âm. |X| = 1.5 ≥ 1 → bit 1 đã đứng trước dấu chấm → đã chuẩn hóa sẵn → k = 0 (KHÔNG dịch dấu chấm). Tính E = 127, tạo F = "1" + 22 số 0.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Tách dấu: X = −1.5 &lt; 0 → S = 1, |X| = 1.5
+
+Bước 2 — Đổi |X| sang nhị phân:
+  Phần nguyên: 1 = 1₂
+  Phần lẻ: 0.5 × 2 = 1.0 → 1, còn 0 → DỪNG → 0.5 = 0.1₂
+  → 1.5₁₀ = 1.1₂
+
+Bước 3 — Chuẩn hóa về 1.F × 2^k:
+  1.1₂ đã có bit 1 đầu đứng trước dấu chấm → ĐÃ CHUẨN
+  → 1.1₂ = 1.1₂ × 2^0   → k = 0 (không dịch dấu chấm)
+
+Bước 4 — Tính E = k + 127:
+  E = 0 + 127 = 127 = 01111111₂   (8 bit, đây là "mũ trung tính")
+
+Bước 5 — Tạo F (23 bit):
+  Significand = 1.1 → bỏ bit 1 đầu → phần sau dấu chấm = "1"
+  Pad thêm 22 số 0 → F = 10000000000000000000000
+
+Bước 6 — Ghép S | E | F:
+  1 | 01111111 | 10000000000000000000000
+  = 10111111110000000000000000000000  (32 bit)
+
+  Đổi hex: 1011 1111 1100 0000 0000 0000 0000 0000
+  = 0xBFC00000</div>
+    <p><strong>✓ Kết quả:</strong> −1.5₁₀ = 1|01111111|10000000000000000000000 = <strong>0xBFC00000</strong></p>
+    <p><strong>🔍 Kiểm tra (đảo ngược):</strong></p>
+    <div class="code-block">X = (−1)^1 × 2^(127−127) × 1.1₂
+  = (−1) × 2^0 × 1.5
+  = (−1) × 1 × 1.5
+  = −1.5   ✓ (khớp đề bài)
+
+  Bài học: Số thực "âm" KHÔNG đồng nghĩa mũ "âm"! Phải xem |X| lớn hay nhỏ hơn 1.</div>
+  </div>
+</div>
+
+<!-- Bài 3: −0.0625 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Biểu diễn <strong>X = −0.0625</strong> theo IEEE 754 Single Precision.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-5-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-5-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> S = 1 · E = k + 127 · chuẩn hóa <code>1.F × 2^k</code>. <em>Quy tắc dịch: |X| &lt; 1 → dịch dấu chấm sang PHẢI → k âm.</em></p>
+    <p><strong>💡 Cách áp dụng:</strong> S = 1 vì X âm. |X| = 0.0625 = 2^(−4). Đổi sang nhị phân sẽ có 4 bit 0 trước bit 1 đầu → dịch dấu chấm sang PHẢI 4 vị trí → k = −4.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Tách dấu: X = −0.0625 &lt; 0 → S = 1, |X| = 0.0625
+
+Bước 2 — Đổi |X| sang nhị phân (nhân 2 lấy phần nguyên):
+  0.0625 × 2 = 0.125   → 0
+  0.125  × 2 = 0.25    → 0
+  0.25   × 2 = 0.5     → 0
+  0.5    × 2 = 1.0     → 1, còn 0   → DỪNG
+  → 0.0625₁₀ = 0.0001₂
+
+Bước 3 — Chuẩn hóa về 1.F × 2^k:
+  0.0001₂ có 3 số 0 giữa dấu chấm và bit 1 đầu
+  → dịch dấu chấm sang PHẢI 4 vị trí
+  → 0.0001₂ = 1.0₂ × 2^(−4)   → k = −4
+
+Bước 4 — Tính E = k + 127:
+  E = −4 + 127 = 123 = 01111011₂   (8 bit)
+
+Bước 5 — Tạo F (23 bit):
+  Significand = 1.0 → bỏ bit 1 đầu → phần sau dấu chấm = "0"
+  Pad 22 số 0 → F = 00000000000000000000000
+
+Bước 6 — Ghép S | E | F:
+  1 | 01111011 | 00000000000000000000000
+  = 10111101100000000000000000000000
+
+  Đổi hex: 1011 1101 1000 0000 0000 0000 0000 0000
+  = 0xBD800000</div>
+    <p><strong>✓ Kết quả:</strong> −0.0625₁₀ = 1|01111011|00000000000000000000000 = <strong>0xBD800000</strong></p>
+    <p><strong>🔍 Kiểm tra (đảo ngược):</strong></p>
+    <div class="code-block">X = (−1)^1 × 2^(123−127) × 1.0
+  = (−1) × 2^(−4) × 1.0
+  = (−1) × 0.0625 × 1.0
+  = −0.0625   ✓ (khớp đề bài)</div>
+  </div>
+</div>
+
+<!-- Bài 4: Đảo ngược 0xBF800000 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Đảo ngược: cho <strong>0xBF800000</strong>, tìm X thập phân.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-5-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-5-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> <code>X = (−1)^S × 2^(E−127) × (1.F)₂</code>. Tách 32 bit thành S (1) | E (8) | F (23), tính k = E − 127, tính 1.F, áp công thức.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Đổi hex → 32 bit nhị phân. Tách 3 trường theo cấu trúc 1-8-23. Tính k = E − 127. Tính 1.F bằng cách thêm "1." trước F và cộng các bit 1 với $2^{-1}, 2^{-2}, ...$. Áp công thức để ra X.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Hex → 32 bit + tách 3 trường:
+  0xBF800000 = 1011 1111 1000 0000 0000 0000 0000 0000
+  S = 1
+  E = 01111111 = 1·2^6 + 1·2^5 + 1·2^4 + 1·2^3 + 1·2^2 + 1·2^1 + 1·2^0
+                = 64 + 32 + 16 + 8 + 4 + 2 + 1 = 127
+  F = 00000000000000000000000   (23 bit toàn 0)
+
+Bước 2 — Tính mũ thực:
+  k = E − 127 = 127 − 127 = 0   (mũ trung tính! → |X| ≈ 1)
+
+Bước 3 — Tính 1.F:
+  1.F = 1.000...0₂ = 1.0   (vì F = 0 hết → phần lẻ = 0)
+
+Bước 4 — Áp công thức:
+  X = (−1)^S × 2^k × (1.F)
+  X = (−1)^1 × 2^0 × 1.0
+  X = (−1) × 1 × 1.0
+  X = −1.0</div>
+    <p><strong>✓ Kết quả:</strong> 0xBF800000 = <strong>−1.0</strong> (đây là biểu diễn của số nguyên −1 trong IEEE 754)</p>
+    <p><strong>🔍 Kiểm tra (đảo ngược ngược lại):</strong></p>
+    <div class="code-block">Từ X = −1.0 → tính lại 32 bit:
+  S = 1 (âm)
+  |X| = 1.0 = 1.0₂ → đã chuẩn → 1.0₂ × 2^0, k = 0
+  E = 0 + 127 = 127 = 01111111₂
+  F = 00...0 (23 bit)
+  Ghép: 1 | 01111111 | 00000000000000000000000
+       = 10111111100000000000000000000000
+       = 1011 1111 1000 0000 0000 0000 0000 0000
+       = 0xBF800000   ✓ (khớp đề bài)
+
+  Dấu hiệu nhận biết: E = 01111111 (= 127) → mũ thực = 0 → số dạng 1.x.</div>
+  </div>
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -726,6 +885,5 @@ X = (−1)^1 × 2^(125−127) × (1.1)₂
   <a href="06-ieee754-dao.html" class="btn">Bài 6: Đảo ngược + Double →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

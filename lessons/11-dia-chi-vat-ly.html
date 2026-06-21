@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -325,14 +326,69 @@ function calcPA() {
   const baseHex = base.toString(16).toUpperCase().padStart(5, '0');
   const paHex = pa.toString(16).toUpperCase().padStart(5, '0');
 
-  let html = `<p><strong>Bước 1:</strong> Segment × 10H = thêm 1 chữ số 0 vào bên phải ${segPadded}H</p>`;
-  html += `<div class="code-block">${segPadded}H × 10H = <strong class="text-accent">${baseHex}H</strong></div>`;
-  html += `<p><strong>Bước 2:</strong> Cộng với Offset ${offPadded}H:</p>`;
-  html += `<div class="code-block">   ${baseHex}H\n +   ${offPadded}H\n ─────────\n = ${paHex}H</div>`;
+  // Compute column-by-column hex addition with carries
+  // Pad base to 5 digits, offset to 5 digits (with leading 0)
+  const baseDigits = baseHex.split('');         // 5 hex chars, e.g. ['0','A','2','B','0']
+  const offDigits = offPadded.padStart(5, '0').split(''); // 5 hex chars, e.g. ['0','0','0','F','3']
+  const resultDigits = [];
+  const colSteps = [];
+  let carry = 0;
+  const hexVals = '0123456789ABCDEF';
+  for (let i = 4; i >= 0; i--) {
+    const b = parseInt(baseDigits[i], 16);
+    const o = parseInt(offDigits[i], 16);
+    const sum = b + o + carry;
+    const resDigit = sum % 16;
+    const newCarry = Math.floor(sum / 16);
+    resultDigits[i] = hexVals[resDigit];
+    colSteps.unshift({
+      idx: i,
+      b, o, carryIn: carry, sum,
+      resDigit: hexVals[resDigit],
+      carryOut: newCarry
+    });
+    carry = newCarry;
+  }
+  const computedPA = resultDigits.join('');
+
+  let html = `<div class="callout callout-theory"><div class="callout-title">📋 Trình bày chi tiết: ${segPadded}H:${offPadded}H</div>`;
+
+  html += `<p><strong>📌 Công thức áp dụng:</strong> $\text{PA} = \text{Segment} \times 16 + \text{Offset} = \text{Segment} \times 10_H + \text{Offset}$</p>`;
+
+  html += `<p class="mt-2"><strong>Bước 1: Nhân Segment với 10H (= thêm 1 chữ số 0 hexa bên phải)</strong></p>`;
+  html += `<div class="code-block">Segment = ${segPadded}H
+${segPadded}H × 10H = <strong class="text-accent">${baseHex}H</strong>
+   ↑ chỉ cần thêm 1 số "0" vào bên phải</div>`;
+  html += `<p style="font-size:0.85rem; color: var(--text-secondary);"><em>Vì 16 = 10_H = 2^4, nên nhân với 16 = dịch trái 4 bit = thêm 1 chữ số 0 hexa.</em></p>`;
+
+  html += `<p class="mt-2"><strong>Bước 2: Cộng với Offset ${offPadded}H (theo cột, từ phải sang trái)</strong></p>`;
+  html += `<div class="code-block">        ${baseDigits.join('  ')}H    (Segment × 10H)
+     +  ${offDigits.join('  ')}H    (Offset)
+       ─────────────
+        ${computedPA.split('').join('  ')}H    (= PA)</div>`;
+
+  // Column-by-column detail
+  html += `<p class="mt-2"><strong>Chi tiết cộng từng cột (phải → trái, có nhớ):</strong></p>`;
+  html += `<table style="font-size:0.85rem;"><tr><th>Cột</th><th>Base</th><th>Offset</th><th>Nhớ vào</th><th>Tổng</th><th>Giá trị ghi</th><th>Nhớ ra</th></tr>`;
+  colSteps.forEach(s => {
+    html += `<tr><td>${s.idx}</td><td>${hexVals[s.b]}</td><td>${hexVals[s.o]}</td><td>${s.carryIn}</td><td>${s.sum}</td><td><strong>${s.resDigit}</strong></td><td>${s.carryOut}${s.carryOut > 0 ? ' (nhớ)' : ''}</td></tr>`;
+  });
+  html += `</table>`;
+
+  // Plain text version of column steps
+  html += `<div class="code-block mt-2">`;
+  colSteps.forEach(s => {
+    const line = `Cột ${s.idx}: ${hexVals[s.b]} + ${hexVals[s.o]}` + (s.carryIn > 0 ? ` + ${s.carryIn} (nhớ)` : '') + ` = ${s.sum}`;
+    const line2 = s.sum >= 16 ? `  = 16 + ${s.sum - 16} → ghi "${s.resDigit}", nhớ 1` : `  → ghi "${s.resDigit}"`;
+    html += `${line}\n${line2}\n`;
+  });
+  html += `</div>`;
+
+  html += `</div>`;
 
   // Bit display of PA (20 bits)
   const bin = pa.toString(2).padStart(20, '0');
-  html += `<p><strong>Địa chỉ vật lý 20 bit:</strong></p>`;
+  html += `<p class="mt-2"><strong>Địa chỉ vật lý 20 bit (nhị phân):</strong></p>`;
   const bitRow = Bit.renderBits(bin, { labels: true });
   const tempDiv = document.createElement('div');
   tempDiv.appendChild(bitRow);
@@ -340,14 +396,23 @@ function calcPA() {
 
   const inRange = pa <= 0xFFFFF;
   if (inRange) {
-    html += `<div class="result-box"><span class="result-label">Kết quả:</span>${segPadded}H:${offPadded}H → PA = ${paHex}H (địa chỉ hợp lệ trong 1 MB)</div>`;
+    html += `<div class="result-box"><span class="result-label">✓ Kết quả:</span>${segPadded}H:${offPadded}H → PA = <strong>${paHex}H</strong> (địa chỉ hợp lệ trong 1 MB)</div>`;
   } else {
     const wrapped = pa & 0xFFFFF;
     const wrappedHex = wrapped.toString(16).toUpperCase().padStart(5, '0');
     html += `<div class="result-box error"><span class="result-label">Tràn 20 bit!</span>Tổng = ${paHex}H vượt FFFFFH → CPU chỉ giữ 20 bit thấp = ${wrappedHex}H (wrap around)</div>`;
   }
+
+  html += `<p class="mt-2"><strong>🔍 Kiểm tra (đảo ngược để verify):</strong></p>`;
+  html += `<div class="code-block">Kiểm tra: Segment × 10H + Offset = PA?
+  ${segPadded}H × 10H = ${baseHex}H (= ${base} thập phân)
+  ${baseHex}H + ${offPadded}H = ${paHex}H (= ${base} + ${off} = ${pa} thập phân)
+  → PA = ${paHex}H ✓</div>`;
+
   document.getElementById('pa-result').innerHTML = html;
-  renderMathInElement(document.getElementById('pa-result'), {delimiters:[{left:'$',right:'$',display:false}]});
+  if (typeof renderMathInElement !== 'undefined') {
+    renderMathInElement(document.getElementById('pa-result'), {delimiters:[{left:'$',right:'$',display:false},{left:'$$',right:'$$',display:true}]});
+  }
 }
 
 function findSO() {
@@ -426,63 +491,175 @@ function drawMemMap() {
   html += `<div class="result-box"><span class="result-label">Tổng kết:</span>Đoạn ${segStr.padStart(4,'0')}H bắt đầu tại ${baseHex}H, kết thúc tại ${endHex}H, dài 64 KB.</div>`;
   document.getElementById('map-result').innerHTML = html;
 }
+
+// Auto-run all 3 tabs on page load so user sees result immediately
+window.addEventListener('DOMContentLoaded', () => {
+  calcPA();
+  findSO();
+  drawMemMap();
+});
 </script>
 
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+<p>Hãy tự tính địa chỉ vật lý trước (áp dụng công thức PA = Segment × 10H + Offset), sau đó bấm "Xem đáp án" để đối chiếu từng bước.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Tính địa chỉ vật lý của lệnh đang chạy khi <strong>CS:IP = 1A2BH:0034H</strong>.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-11-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-11-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> $\text{PA} = \text{CS} \times 16 + \text{IP} = \text{CS} \times 10_H + \text{IP}$. Vì CS là thanh ghi đoạn của lệnh, IP là offset đi kèm → địa chỉ lệnh đang chạy = CS:IP.</p>
+    <p><strong>💡 Cách áp dụng:</strong> B1: nhân CS với 10H = thêm 1 chữ số 0 hexa bên phải CS. B2: cộng kết quả với IP theo cột (phải → trái), có nhớ nếu tổng ≥ 16.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: CS × 10H = thêm 1 số 0 bên phải CS</strong>
+  CS = 1A2BH
+  1A2BH × 10H = <strong>1A2B0H</strong>
+  (vì 16 = 10_H = 2^4 → nhân 16 = dịch trái 4 bit = thêm 1 chữ số 0 hexa)
 
-<script>
-const exercises = [
-  {
-    question: "Tính địa chỉ vật lý của lệnh đang chạy khi <strong>CS:IP = 1A2BH:0034H</strong>.",
-    answer: `CS × 10H + IP<br>
-    1A2BH × 10H = <strong>1A2B0H</strong><br>
-    1A2B0H + 0034H = <strong>1A2E4H</strong><br>
-    → PA = <strong>1A2E4H</strong>`
-  },
-  {
-    question: "Đỉnh stack ở <strong>SS:SP = 3F00H:FFFEH</strong>. Tìm địa chỉ vật lý của đỉnh stack.",
-    answer: `SS × 10H + SP<br>
-    3F00H × 10H = <strong>3F000H</strong><br>
-    3F000H + FFFEH = <strong>4FFFEH</strong><br>
-    → PA = <strong>4FFFEH</strong>`
-  },
-  {
-    question: "Cho địa chỉ vật lý <strong>PA = 2A345H</strong>. Tìm <strong>3 cặp S:O khác nhau</strong> cùng trỏ tới địa chỉ này.",
-    answer: `Tách PA thành 2 phần, chuyển dần các chữ số 0 từ Segment sang Offset:<br>
-    • Cặp 1: S = 2A34H, O = 0005H → 2A34H×10H + 0005H = 2A340H + 0005H = 2A345H ✓<br>
-    • Cặp 2: S = 2A30H, O = 0045H → 2A30H×10H + 0045H = 2A300H + 0045H = 2A345H ✓<br>
-    • Cặp 3: S = 2A00H, O = 0345H → 2A00H×10H + 0345H = 2A000H + 0345H = 2A345H ✓<br>
-    (còn nhiều cặp khác)`
-  },
-  {
-    question: "Địa chỉ vật lý <strong>FFFFFH</strong> (byte cuối của 1 MB) có thể được trỏ bởi cặp S:O nào? Nêu ý nghĩa.",
-    answer: `Một cặp phổ biến: <strong>F000H:FFFFH</strong><br>
-    F000H × 10H = F0000H<br>
-    F0000H + FFFFH = FFFFFH ✓<br>
-    Ý nghĩa: đây là byte cuối cùng của RAM 1 MB trên 8088. Stack hoặc dữ liệu hệ thống thường đặt gần đây để dễ kiểm tra.`
-  }
-];
+<strong>Bước 2: Cộng IP = 0034H vào 1A2B0H (theo cột, phải → trái)</strong>
+        1  A  2  B  0  H    (CS × 10H)
+     +  0  0  0  3  4  H    (IP)
+        ─────────────────
+        1  A  2  E  4  H    (= PA)
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+  Cột 0 (phải):  0 + 4 = 4                  → ghi "4", nhớ 0
+  Cột 1:         B(11) + 3 = 14 = E         → ghi "E", nhớ 0   (14 < 16)
+  Cột 2:         2 + 0 = 2                  → ghi "2", nhớ 0
+  Cột 3:         A(10) + 0 = A              → ghi "A", nhớ 0
+  Cột 4:         1 + 0 = 1                  → ghi "1", nhớ 0</div>
+    <p><strong>✓ Kết quả:</strong> PA = <strong>1A2E4H</strong> (địa chỉ vật lý của lệnh đang chạy)</p>
+    <p><strong>🔍 Kiểm tra (đổi sang thập phân để verify):</strong></p>
+    <div class="code-block">CS = 1A2BH = 1×4096 + 10×256 + 2×16 + 11 = 6699 (thập phân)
+IP = 0034H = 3×16 + 4 = 52 (thập phân)
+PA = CS × 16 + IP = 6699 × 16 + 52 = 107184 + 52 = 107236
+107236 = 0x1A2E4 ✓
+→ PA = 1A2E4H ✓ (khớp kết quả hex)</div>
+  </div>
+</div>
+
+<!-- Bài 2 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Đỉnh stack ở <strong>SS:SP = 3F00H:FFFEH</strong>. Tìm địa chỉ vật lý của đỉnh stack.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-11-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-11-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> $\text{PA} = \text{SS} \times 10_H + \text{SP}$. Đỉnh stack = SS:SP. SP = FFFFH là offset lớn nhất (đỉnh stack ở cuối đoạn 64 KB).</p>
+    <p><strong>💡 Cách áp dụng:</strong> B1: thêm số 0 vào SS. B2: cộng với SP theo cột. <strong>Chú ý:</strong> cột có tổng ≥ 16 phải "nhớ 1" sang cột trái.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: SS × 10H = thêm 1 số 0 bên phải SS</strong>
+  SS = 3F00H
+  3F00H × 10H = <strong>3F000H</strong>
+
+<strong>Bước 2: Cộng SP = FFFEH vào 3F000H (theo cột)</strong>
+  (FFFEH được pad thành 0FFFEH để đủ 5 cột)
+        3  F  0  0  0  H    (SS × 10H)
+     +  0  F  F  F  E  H    (SP, đã pad)
+        ─────────────────
+        4  E  F  F  E  H    (= PA)
+
+  Cột 0: 0 + E(14) = 14 = E             → ghi "E", nhớ 0
+  Cột 1: 0 + F(15) = 15 = F             → ghi "F", nhớ 0
+  Cột 2: 0 + F(15) = 15 = F             → ghi "F", nhớ 0
+  Cột 3: F(15) + F(15) = 30 = 16 + 14   → ghi "E", nhớ 1   ← CỘT NÀY CÓ NHỚ!
+  Cột 4: 3 + 0 + 1 (nhớ) = 4            → ghi "4", nhớ 0</div>
+    <p><strong>✓ Kết quả:</strong> PA = <strong>4EFFEH</strong> (địa chỉ vật lý của đỉnh stack)</p>
+    <p><strong>🔍 Kiểm tra (đổi sang thập phân để verify):</strong></p>
+    <div class="code-block">SS = 3F00H = 3×4096 + 15×256 = 12288 + 3840 = 16128 (thập phân)
+SP = FFFEH = 15×4096 + 15×256 + 15×16 + 14 = 65534 (thập phân)
+PA = SS × 16 + SP = 16128 × 16 + 65534 = 258048 + 65534 = 323582
+323582 = 0x4EFFE ✓ (4×65536 + 14×4096 + 15×256 + 15×16 + 14 = 262144 + 57344 + 3840 + 240 + 14)
+→ PA = 4EFFEH ✓ (khớp kết quả hex)</div>
+  </div>
+</div>
+
+<!-- Bài 3 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Cho địa chỉ vật lý <strong>PA = 2A345H</strong>. Tìm <strong>3 cặp S:O khác nhau</strong> cùng trỏ tới địa chỉ này.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-11-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-11-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> $\text{PA} = S \times 10_H + O$. Vì $S \times 10_H$ luôn kết thúc bằng chữ số 0, ta có thể "chuyển" các chữ số 0 từ Segment sang Offset để tạo nhiều cặp S:O khác nhau cùng trỏ tới 1 PA.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Bắt đầu từ S lớn nhất (lấy 4 chữ số đầu của PA), O = phần còn lại (4 chữ số cuối). Sau đó "mượn" từng chữ số 0: giảm S đi 1 chữ số thấp nhất (= 0), tăng O thêm chữ số đó.</p>
+    <p><strong>🧮 Tính toán từng bước (với PA = 2A345H):</strong></p>
+    <div class="code-block"><strong>Cách 1: S lớn nhất = 4 chữ số đầu của PA</strong>
+  S = 2A34H, O = 5H (= 0005H)
+  Kiểm tra: 2A34H × 10H + 0005H
+           = 2A340H + 0005H
+           = 2A345H ✓
+
+<strong>Cách 2: Mượn 1 chữ số 0 từ S → O</strong>
+  (S giảm 1 chữ số 0 ở cuối, O tăng 1 chữ số 0 ở đầu)
+  S = 2A30H, O = 45H (= 0045H)
+  Kiểm tra: 2A30H × 10H + 0045H
+           = 2A300H + 0045H
+           = 2A345H ✓
+
+<strong>Cách 3: Mượn thêm 1 chữ số 0 nữa</strong>
+  S = 2A00H, O = 345H (= 0345H)
+  Kiểm tra: 2A00H × 10H + 0345H
+           = 2A000H + 0345H
+           = 2A345H ✓
+
+(Còn tiếp: S = 2000H/O = A345H; S = 1000H/O = 1A345H; v.v.)</div>
+    <p><strong>✓ Kết quả:</strong> 3 cặp S:O hợp lệ: <strong>2A34H:0005H</strong>, <strong>2A30H:0045H</strong>, <strong>2A00H:0345H</strong> (còn nhiều cặp khác).</p>
+    <p><strong>🔍 Kiểm tra (đổi sang thập phân để verify):</strong></p>
+    <div class="code-block">Cách 1: 2A34H × 10H + 0005H
+  2A34H = 2×4096 + 10×256 + 3×16 + 4 = 8192 + 2560 + 48 + 4 = 10804
+  2A34H × 16 = 10804 × 16 = 172864 = 0x2A340
+  + 0x5 = 0x2A345 ✓
+Cách 2: 2A30H × 16 = 0x2A300, + 0x45 = 0x2A345 ✓
+Cách 3: 2A00H × 16 = 0x2A000, + 0x345 = 0x2A345 ✓
+
+→ Cả 3 cặp đều cho cùng PA = 2A345H. Đây là đặc điểm của kiến trúc đoạn.</div>
+  </div>
+</div>
+
+<!-- Bài 4 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Địa chỉ vật lý <strong>FFFFFH</strong> (byte cuối của 1 MB) có thể được trỏ bởi cặp S:O nào? Nêu ý nghĩa.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-11-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-11-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> $\text{PA} = S \times 10_H + O = \text{FFFFF}_H$. Cần tìm S, O sao cho $S \times 10_H + O = \text{FFFFF}_H$, với $S \le \text{FFFF}_H$ và $O \le \text{FFFF}_H$.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Vì FFFFFH có 5 chữ số và không kết thúc bằng 0, ta không thể lấy S = 4 chữ số đầu (= FFFF) vì khi đó O = FFFFH × 10H = FFFF0H, cộng với O = ? → 5 chữ số cuối phải = FFFFFH. Cách đơn giản nhất: chọn S = F000H (3 chữ số đầu + 1 số 0) và O = FFFFH (4 chữ số còn lại). Đây là cách kinh điển mà BIOS 8088 thường dùng.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Chọn S = F000H, O = FFFFH</strong>
+
+<strong>Bước 1: S × 10H = thêm 1 số 0 bên phải S</strong>
+  F000H × 10H = F0000H
+
+<strong>Bước 2: Cộng với O = FFFFH</strong>
+        F  0  0  0  0  H    (S × 10H)
+     +  0  F  F  F  F  H    (O, đã pad)
+        ─────────────────
+        F  F  F  F  F  H    (= PA)
+
+  Cột 0: 0 + F(15) = 15 = F             → ghi "F", nhớ 0
+  Cột 1: 0 + F(15) = 15 = F             → ghi "F", nhớ 0
+  Cột 2: 0 + F(15) = 15 = F             → ghi "F", nhớ 0
+  Cột 3: 0 + F(15) = 15 = F             → ghi "F", nhớ 0
+  Cột 4: F(15) + 0 = 15 = F             → ghi "F", nhớ 0
+  → PA = FFFFFH ✓</div>
+    <p><strong>✓ Kết quả:</strong> Một cặp phổ biến: <strong>F000H:FFFFH</strong> (còn nhiều cặp khác như FFFFH:000FH, F001H:FFEFH, ...).</p>
+    <p><strong>🔍 Kiểm tra & ý nghĩa:</strong></p>
+    <div class="code-block">Kiểm tra:
+  F000H = 15×4096 = 61440 (thập phân)
+  F000H × 16 = 61440 × 16 = 983040 = 0xF0000
+  FFFFH = 65535 (thập phân)
+  0xF0000 + 0xFFFF = 983040 + 65535 = 1048575 = 0xFFFFF ✓
+  (= 2^20 − 1 = byte cuối của 1 MB)
+
+Ý nghĩa:
+  - FFFFFH là byte thứ 1.048.575 — byte cuối của RAM 1 MB trên 8088.
+  - Cặp F000H:FFFFH được BIOS IBM PC dùng cho vùng ROM BIOS
+    (đoạn F000H là đoạn cao nhất, chứa BIOS hệ thống).
+  - Khi CPU 8088 reset, CS = FFFFH, IP = 0000H → PA = FFFF0H,
+    chỉ cách FFFFFH đúng 15 byte — nơi đặt lệnh JMP đầu tiên của BIOS.</div>
+  </div>
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -620,6 +797,5 @@ Cộng từng cột (phải → trái):
   <a href="12-co-fr.html" class="btn">Bài 12: Cờ FR →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

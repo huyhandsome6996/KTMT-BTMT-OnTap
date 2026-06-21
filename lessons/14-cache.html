@@ -18,6 +18,7 @@
   .psu-marker { position: absolute; top: -6px; width: 4px; height: 36px; background: var(--primary-dark); border-radius: 2px; }
   .psu-label { position: absolute; top: 30px; font-size: 0.75rem; color: var(--primary-dark); font-weight: bold; transform: translateX(-50%); }
 </style>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -403,7 +404,7 @@ new StepReveal('step-demo', steps);
 
   <!-- Tab 1: Cache Mapping -->
   <div class="tab-content active">
-    <p>Chọn loại mapping và nhập số liệu:</p>
+    <p>Chọn loại mapping và nhập số liệu (kèm khối RAM cụ thể cần tra):</p>
     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
       <div>
         <label>Loại mapping:</label><br>
@@ -422,7 +423,11 @@ new StepReveal('step-demo', steps);
         <label>Số khối cache:</label><br>
         <input type="number" id="cache-blocks" value="8" min="1" max="16" style="max-width: 100px;">
       </div>
-      <button class="btn mt-1" onclick="calcMapping()">Tính!</button>
+      <div>
+        <label>Số khối RAM cần tra (i):</label><br>
+        <input type="number" id="block-lookup" value="13" min="0" max="63" style="max-width: 100px;">
+      </div>
+      <button class="btn mt-1" onclick="calcMapping()">Tính vị trí!</button>
     </div>
     <div id="map-result"></div>
   </div>
@@ -536,8 +541,13 @@ function calcMapping() {
   const type = document.getElementById('map-type').value;
   const ramBlocks = parseInt(document.getElementById('ram-blocks').value);
   const cacheBlocks = parseInt(document.getElementById('cache-blocks').value);
+  const lookupI = parseInt(document.getElementById('block-lookup').value);
   if (isNaN(ramBlocks) || isNaN(cacheBlocks) || ramBlocks < 1 || cacheBlocks < 1) {
     document.getElementById('map-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Số khối không hợp lệ.</div>';
+    return;
+  }
+  if (isNaN(lookupI) || lookupI < 0 || lookupI >= ramBlocks) {
+    document.getElementById('map-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Số khối RAM cần tra phải từ 0 đến ' + (ramBlocks - 1) + '.</div>';
     return;
   }
   let way = 1, setCount = cacheBlocks;
@@ -552,7 +562,22 @@ function calcMapping() {
     return;
   }
 
+  // Highlight block for the lookup
+  let lookupK, lookupDesc;
+  if (type === 'fully') {
+    lookupK = 'bất kỳ';
+    lookupDesc = 'Khối RAM ' + lookupI + ' có thể vào bất kỳ vị trí nào trong ' + cacheBlocks + ' khối cache (dùng tag để tìm).';
+  } else if (type === 'direct') {
+    lookupK = lookupI % setCount;
+    lookupDesc = 'K = ' + lookupI + ' mod ' + setCount + ' = ' + lookupK + ' → khối RAM ' + lookupI + ' vào khối cache số ' + lookupK + '.';
+  } else {
+    lookupK = lookupI % setCount;
+    lookupDesc = 'K = ' + lookupI + ' mod ' + setCount + ' = ' + lookupK + ' → khối RAM ' + lookupI + ' vào set ' + lookupK + ' (có ' + way + ' way để chọn).';
+  }
+
   let html = `<p><strong>${typeName}</strong> — RAM: ${ramBlocks} khối, Cache: ${cacheBlocks} khối (${setCount} set × ${way} way)</p>`;
+  // Highlighted lookup result at top
+  html += `<div class="result-box" style="border-left: 4px solid var(--accent);"><span class="result-label">🔎 Khối RAM cần tra (i = ${lookupI}):</span> ${lookupDesc}</div>`;
   if (type === 'fully') {
     html += `<p>Mỗi khối RAM có thể vào <strong>bất kỳ vị trí nào</strong> trong ${cacheBlocks} khối cache.</p>`;
   } else {
@@ -560,12 +585,33 @@ function calcMapping() {
     html += `<table><tr><th>Khối RAM (i)</th><th>K = i mod ${setCount}</th><th>Vào ${type === 'direct' ? 'khối cache' : 'set'}</th></tr>`;
     for (let i = 0; i < Math.min(ramBlocks, 24); i++) {
       const K = i % setCount;
-      html += `<tr><td>${i}</td><td>${i} mod ${setCount} = <strong>${K}</strong></td><td><strong>${K}</strong></td></tr>`;
+      const isLookup = (i === lookupI);
+      const rowStyle = isLookup ? 'background: var(--accent-bg); font-weight: bold;' : '';
+      const marker = isLookup ? ' ← KHỐI TRA' : '';
+      html += `<tr style="${rowStyle}"><td>${i}${marker}</td><td>${i} mod ${setCount} = <strong>${K}</strong></td><td><strong>${K}</strong></td></tr>`;
     }
     if (ramBlocks > 24) html += `<tr><td colspan="3" style="text-align:center; color:var(--gray-500);">... còn ${ramBlocks - 24} khối nữa</td></tr>`;
     html += `</table>`;
+    // List other blocks mapping to same K
+    if (type === 'direct') {
+      const sameK = [];
+      for (let i = 0; i < ramBlocks; i++) {
+        if (i !== lookupI && (i % setCount) === lookupK) sameK.push(i);
+      }
+      if (sameK.length > 0) {
+        html += `<p><strong>Các khối RAM khác cũng vào khối cache ${lookupK}:</strong> ${sameK.join(', ')} (cách nhau ${setCount}). Đây là hạn chế của Direct Mapping — có thể gây nhiều miss.</p>`;
+      }
+    } else {
+      const sameK = [];
+      for (let i = 0; i < ramBlocks; i++) {
+        if (i !== lookupI && (i % setCount) === lookupK) sameK.push(i);
+      }
+      if (sameK.length > 0) {
+        html += `<p><strong>Các khối RAM khác cũng vào set ${lookupK}:</strong> ${sameK.join(', ')} (cách nhau ${setCount}). Set ${lookupK} có ${way} way, nếu đầy phải áp dụng chính sách thay thế.</p>`;
+      }
+    }
   }
-  html += `<div class="result-box"><span class="result-label">Ví dụ:</strong>Khối RAM 13 → ${type === 'fully' ? 'bất kỳ vị trí nào (free)' : (type === 'direct' ? 'khối cache ' + (13 % setCount) : 'set ' + (13 % setCount) + ' (có ' + way + ' way để chọn)')}</div>`;
+  html += `<div class="result-box"><span class="result-label">Tổng kết:</span>Khối RAM ${lookupI} → ${type === 'fully' ? 'bất kỳ vị trí (free)' : (type === 'direct' ? 'khối cache ' + lookupK : 'set ' + lookupK + ' (có ' + way + ' way)')}</div>`;
   document.getElementById('map-result').innerHTML = html;
 }
 
@@ -742,76 +788,212 @@ function calcPSU() {
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra. Mỗi đáp án có công thức, cách áp dụng, tính từng bước và kiểm tra ngược lại.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Cache có $t_c = 4$ ns, RAM có $t_m = 60$ ns, $n = 5$ (temporal locality). Tính $t_{av}$ và speedup.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-14-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-14-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Temporal locality: $t_{av} = \frac{n \cdot t_c + t_m}{n}$. Speedup $= \frac{t_m}{t_{av}}$.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Tử số = $n$ lần đọc cache (mỗi lần $t_c$) + 1 lần đọc RAM ($t_m$) để nạp dữ liệu ban đầu. Mẫu số = $n$ lần truy cập. Đây là kịch bản 1 dữ liệu được truy cập lặp lại $n$ lần.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1: Tử số = n·t_c + t_m
+  = 5·4 + 60
+  = 20 + 60
+  = 80 ns  (tổng thời gian cho 5 lần truy cập)
 
-<script>
-const exercises = [
-  {
-    question: "Cache có $t_c = 4$ ns, RAM có $t_m = 60$ ns, $n = 5$ (temporal locality). Tính $t_{av}$ và speedup.",
-    answer: `t_av = (n·t_c + t_m) / n = (5·4 + 60) / 5 = (20 + 60) / 5 = 80 / 5 = <strong>16 ns</strong><br>
-    Speedup = t_m / t_av = 60 / 16 = <strong>3.75×</strong>`
-  },
-  {
-    question: "Direct Mapping: cache có 16 khối, RAM có 64 khối. Khối RAM 35 vào khối cache nào?",
-    answer: `K = i mod n = 35 mod 16<br>
-    35 : 16 = 2 dư 3<br>
-    → K = <strong>3</strong> (khối RAM 35 vào khối cache số 3)<br>
-    Cũng vào khối cache 3: các khối RAM 3, 19, 35, 51 (cách nhau 16).`
-  },
-  {
-    question: "Set-Associative 4-way: cache 16 khối. Khối RAM 25 vào set nào?",
-    answer: `Cache 16 khối, 4-way → số set s = 16/4 = 4.<br>
-    K = i mod s = 25 mod 4<br>
-    25 : 4 = 6 dư 1<br>
-    → K = <strong>1</strong> (khối RAM 25 vào set 1, có 4 way để chọn)`
-  },
-  {
-    question: "LRU với cache 3 khối, chuỗi tham chiếu: A, B, C, A, D, B. Tính hit rate.",
-    answer: `B1: A → MISS, cache=[A], LRU: A<br>
-    B2: B → MISS, cache=[A,B], LRU: A,B<br>
-    B3: C → MISS, cache=[A,B,C], LRU: A,B,C<br>
-    B4: A → HIT (A có trong cache), LRU cập nhật: B,C,A<br>
-    B5: D → MISS, cache đầy. LRU = B (cũ nhất) → thay B bằng D. Cache=[A,C,D], LRU: C,A,D<br>
-    B6: B → MISS (B đã bị thay), cache đầy. LRU = C → thay C bằng B. Cache=[A,D,B]<br>
-    <br>
-    Tổng: 6 tham chiếu, 1 HIT, 5 MISS.<br>
-    Hit rate = 1/6 ≈ <strong>16.7%</strong>`
-  },
-  {
-    question: "CPU có $t_c = 8$ ns, $t_m = 120$ ns, hit ratio = 0.95. Tính $t_{avg}$ (cách giáo trình) và speedup.",
-    answer: `t_avg = t_c + (1 − h)·t_m<br>
-    = 8 + 0.05·120<br>
-    = 8 + 6<br>
-    = <strong>14 ns</strong><br>
-    <br>
-    Speedup = t_m / t_avg = 120 / 14 ≈ <strong>8.57×</strong>`
-  },
-  {
-    question: "Cấu hình PC: CPU 105W, GPU 220W, RAM+Storage+Others 60W. Tính PSU cần và khuyến nghị.",
-    answer: `P_tổng = 105 + 220 + 60 = 385 W<br>
-    PSU_cần = 385 × 1.5 = <strong>577.5 W</strong><br>
-    <br>
-    Khuyến nghị: chọn PSU <strong>650W 80 PLUS Gold</strong> (vùng tối ưu hiệu suất, có dư địa nâng cấp).`
-  }
-];
+Bước 2: Mẫu số = n = 5 (số lần truy cập)
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+Bước 3: t_av = tử số / mẫu số
+  = 80 / 5
+  = 16 ns
+
+Bước 4: Speedup = t_m / t_av
+  = 60 / 16
+  = 3.75×</div>
+    <p><strong>✓ Kết quả:</strong> $t_{av}$ = <strong>16 ns</strong>; Speedup = <strong>3.75×</strong></p>
+    <p><strong>🔍 Kiểm tra:</strong> Đảo ngược: 16 × 5 = 80 = 20 + 60 ✓. Tổng thời gian 80 ns chia cho 5 lần truy cập = 16 ns/lần ✓. So với không có cache (60 ns/lần), cache giúp giảm 60 − 16 = 44 ns, tương đương tăng tốc 3.75 lần ✓.</p>
+  </div>
+</div>
+
+<!-- Bài 2 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Direct Mapping: cache có 16 khối, RAM có 64 khối. Khối RAM 35 vào khối cache nào?</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-14-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-14-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Direct Mapping: $K = i \bmod n$, với $i$ = số khối RAM, $n$ = số khối cache, $K$ = chỉ số khối cache.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Thay $i = 35$, $n = 16$. Tính phép chia 35 cho 16 lấy số dư. Số dư chính là $K$ — vị trí khối cache duy nhất mà khối RAM 35 được ánh xạ vào.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1: Áp dụng công thức K = i mod n
+  K = 35 mod 16
+
+Bước 2: Thực hiện phép chia lấy dư
+  35 : 16 = 2 dư 3
+  (Vì 16 × 2 = 32, 35 − 32 = 3)
+
+Bước 3: K = 3
+
+Vậy khối RAM 35 → khối cache số 3.</div>
+    <p><strong>Các khối RAM khác cũng vào khối cache 3</strong> (cách nhau 16):</p>
+    <ul>
+      <li>$i = 3$: 3 mod 16 = 3 → cache 3</li>
+      <li>$i = 19$: 19 mod 16 = 3 → cache 3</li>
+      <li>$i = 35$: 35 mod 16 = 3 → cache 3 ✓</li>
+      <li>$i = 51$: 51 mod 16 = 3 → cache 3</li>
+    </ul>
+    <p><strong>✓ Kết quả:</strong> Khối RAM 35 → <strong>khối cache số 3</strong>. Đây là hạn chế của Direct Mapping: 4 khối RAM (3, 19, 35, 51) tranh nhau 1 vị trí cache → dễ gây miss nếu truy cập xen kẽ.</p>
+    <p><strong>🔍 Kiểm tra:</strong> 35 − 3 = 32 = 16 × 2 ✓ (khoảng cách đúng bằng $n$). Đảo ngược: $i = K + n \times q = 3 + 16 \times 2 = 35$ ✓ với $q$ = thương = 2.</p>
+  </div>
+</div>
+
+<!-- Bài 3 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Set-Associative 4-way: cache 16 khối. Khối RAM 25 vào set nào?</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-14-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-14-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Set-Associative: $K = i \bmod s$, với $i$ = số khối RAM, $s$ = số set ($s = n / w$, $n$ = số khối cache, $w$ = số way), $K$ = chỉ số set.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Bước đầu tiên phải tính $s$. Cache 16 khối, 4-way → $s = 16 / 4 = 4$ set. Sau đó thay $i = 25$, $s = 4$ vào công thức mod.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1: Tính số set s
+  s = n / w = 16 / 4 = 4 set
+  (Mỗi set có 4 way = 4 vị trí)
+
+Bước 2: Áp dụng công thức K = i mod s
+  K = 25 mod 4
+
+Bước 3: Thực hiện phép chia lấy dư
+  25 : 4 = 6 dư 1
+  (Vì 4 × 6 = 24, 25 − 24 = 1)
+
+Bước 4: K = 1
+
+Vậy khối RAM 25 → set 1 (có 4 way để chọn).</div>
+    <p><strong>So sánh với Direct Mapping (n = 16):</strong></p>
+    <ul>
+      <li>Direct: $K = 25 \bmod 16 = 9$ → 1 vị trí cố định (cache 9).</li>
+      <li>Set-Assoc 4-way: $K = 25 \bmod 4 = 1$ → set 1 (4 vị trí để chọn).</li>
+      <li>→ Set-Associative linh hoạt hơn, ít miss hơn Direct Mapping.</li>
+    </ul>
+    <p><strong>✓ Kết quả:</strong> Khối RAM 25 → <strong>set 1</strong> (có 4 way để chọn). Nếu cả 4 way của set 1 đã đầy, áp dụng chính sách thay thế (LRU/FIFO/LFU).</p>
+    <p><strong>🔍 Kiểm tra:</strong> 25 − 1 = 24 = 4 × 6 ✓ (khoảng cách đúng bằng $s$). Đảo ngược: $i = K + s \times q = 1 + 4 \times 6 = 25$ ✓ với $q$ = thương = 6. Set 1 chứa các khối RAM: 1, 5, 9, 13, 17, 21, 25, 29, ...</p>
+  </div>
+</div>
+
+<!-- Bài 4 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>LRU với cache 3 khối, chuỗi tham chiếu: A, B, C, A, D, B. Tính hit rate.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-14-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-14-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> LRU (Least Recently Used): khi cache đầy và cần nạp khối mới, thay khối <strong>ít được dùng gần đây nhất</strong>. Cập nhật "độ mới" mỗi khi truy cập (kể cả HIT). Hit rate = số HIT / tổng số tham chiếu.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Mô phỏng từng bước theo chuỗi A, B, C, A, D, B. Theo dõi 2 thứ: (1) nội dung cache, (2) thứ tự LRU từ cũ nhất → mới nhất. Khi cache đầy, thay khối đầu danh sách LRU (cũ nhất).</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">B1: A → MISS (cache trống). Nạp A. 
+    Cache=[A,-,-]. LRU: A
+
+B2: B → MISS (còn chỗ). Nạp B.
+    Cache=[A,B,-]. LRU: A→B  (A cũ nhất)
+
+B3: C → MISS (còn 1 chỗ). Nạp C.
+    Cache=[A,B,C]. LRU: A→B→C  (A cũ nhất)
+
+B4: A → HIT! (A có trong cache)
+    Cập nhật LRU: A chuyển xuống cuối (mới nhất)
+    Cache=[A,B,C]. LRU: B→C→A  (B cũ nhất)
+
+B5: D → MISS (cache đầy). LRU = B (cũ nhất) → thay B bằng D.
+    Cache=[A,C,D]. LRU: C→A→D  (C cũ nhất)
+
+B6: B → MISS (B đã bị thay ở B5, cache đầy).
+    LRU = C (cũ nhất) → thay C bằng B.
+    Cache=[A,D,B]. LRU: A→D→B
+
+Tổng kết: 6 tham chiếu, 1 HIT (B4), 5 MISS.
+Hit rate = 1/6 ≈ 0.167 = 16.7%</div>
+    <p><strong>✓ Kết quả:</strong> Hit rate = 1/6 ≈ <strong>16.7%</strong> (1 HIT trong 6 tham chiếu). Cache cuối cùng = [A, D, B].</p>
+    <p><strong>🔍 Kiểm tra:</strong> So sánh với FIFO (cùng chuỗi): B1 A(M), B2 B(M), B3 C(M), B4 A(H), B5 D thay A(M), B6 B thay B... wait, FIFO sẽ thay A (vào đầu tiên) ở B5. Cache sau B5 = [B,C,D], B6 B→HIT! → FIFO hit rate = 2/6 = 33%. LRU cho hit rate thấp hơn trong ví dụ này vì LRU thay B (đang cũ) ở B5, khiến B6 phải miss. Đây là trường hợp LRU thua FIFO — xảy ra khi truy cập theo mẫu "lặp lại sau khi bị thay".</p>
+  </div>
+</div>
+
+<!-- Bài 5 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 5</div>
+  <p>CPU có $t_c = 8$ ns, $t_m = 120$ ns, hit ratio = 0.95. Tính $t_{avg}$ (cách giáo trình) và speedup.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-14-5').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-14-5" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> (Cách giáo trình VN): $t_{avg} = t_c + (1 - h) \cdot t_m$, với $h$ = hit ratio. Speedup $= t_m / t_{avg}$. <em>Lưu ý: công thức gốc chính xác hơn là $t_{avg} = t_c + (1 - h) \cdot (t_m - t_c)$, nhưng giáo trình đơn giản coi penalty = $t_m$.</em></p>
+    <p><strong>💡 Cách áp dụng:</strong> Thay $t_c = 8$, $t_m = 120$, $h = 0.95$. Tính miss ratio = $1 - h = 0.05$. Áp dụng công thức giáo trình: $t_c$ luôn trả (đọc cache trước), nếu miss thì thêm $t_m$ nữa.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1: Tính miss ratio
+  1 − h = 1 − 0.95 = 0.05  (5% miss)
+
+Bước 2: Áp dụng công thức giáo trình
+  t_avg = t_c + (1 − h) · t_m
+        = 8 + 0.05 · 120
+        = 8 + 6
+        = 14 ns
+
+Bước 3: Speedup
+  Speedup = t_m / t_avg
+         = 120 / 14
+         ≈ 8.57×</div>
+    <p><strong>So sánh với công thức gốc (penalty = $t_m - t_c$):</strong></p>
+    <div class="code-block">penalty = t_m − t_c = 120 − 8 = 112 ns
+t_avg (gốc) = t_c + (1 − h) · penalty
+            = 8 + 0.05 · 112
+            = 8 + 5.6
+            = 13.6 ns
+Speedup (gốc) = 120 / 13.6 ≈ 8.82×</div>
+    <p><strong>✓ Kết quả (cách giáo trình):</strong> $t_{avg}$ = <strong>14 ns</strong>; Speedup ≈ <strong>8.57×</strong>. (Cách gốc: $t_{avg}$ = 13.6 ns, Speedup ≈ 8.82×.)</p>
+    <p><strong>🔍 Kiểm tra:</strong> Đảo ngược: 8 + 0.05 × 120 = 8 + 6 = 14 ✓. 120 / 14 = 8.57 ✓. Hit rate 95% → miss 5% → mỗi 100 lần truy cập có 95 HIT (8 ns) + 5 MISS (8 + 120 = 128 ns) → tổng = 95×8 + 5×128 = 760 + 640 = 1400 ns / 100 = 14 ns/lần ✓.</p>
+  </div>
+</div>
+
+<!-- Bài 6 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 6</div>
+  <p>Cấu hình PC: CPU 105W, GPU 220W, RAM+Storage+Others 60W. Tính PSU cần và khuyến nghị.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-14-6').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-14-6" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> $\text{PSU}_{\text{cần}} = (P_{\text{CPU}} + P_{\text{GPU}} + P_{\text{RAM}} + P_{\text{Storage}} + P_{\text{Others}}) \times 1.5$. Hệ số 1.5 (150%) là dự phòng cho spike dòng và đạt hiệu suất tối ưu ở 50-60% tải.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Bước 1: cộng tổng công suất tất cả linh kiện. Bước 2: nhân với 1.5 để có PSU cần thiết. Bước 3: làm tròn lên PSU chuẩn gần nhất (300, 450, 650, 850, 1000W) + khuyến nghị chuẩn 80 PLUS.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1: Lập bảng công suất linh kiện
+  ┌─────────────────────────┬──────────┐
+  │ Linh kiện               │ Công suất │
+  ├─────────────────────────┼──────────┤
+  │ CPU                     │  105 W   │
+  │ GPU                     │  220 W   │
+  │ RAM + Storage + Others  │   60 W   │
+  ├─────────────────────────┼──────────┤
+  │ TỔNG                    │  385 W   │
+  └─────────────────────────┴──────────┘
+
+Bước 2: Nhân hệ số dự phòng 1.5
+  PSU_cần = 385 × 1.5 = 577.5 W
+
+Bước 3: Chọn PSU chuẩn (≥ 577.5 W)
+  PSU có sẵn: 300, 450, 650, 850, 1000 W
+  - 450 W  &lt; 577.5 W  → KHÔNG đủ
+  - 650 W  ≥ 577.5 W  → ĐỦ (chọn PSU này)
+  - 850 W  ≥ 577.5 W  → Dư (cho nâng cấp sau)
+
+  → Chọn PSU 650W (vừa đủ + dư địa nhỏ)</div>
+    <p><strong>Phân tích vùng tải:</strong></p>
+    <ul>
+      <li>Tải thực = 385 W / 650 W = 59.2% → nằm trong vùng tối ưu hiệu suất (50-60%).</li>
+      <li>PSU 650W 80 PLUS Gold đạt hiệu suất ~90% ở 50-60% tải → ít nhiệt, tuổi thọ cao.</li>
+      <li>Dư địa 650 − 577.5 = 72.5 W cho spike dòng lúc boot hoặc tải cao đột biến.</li>
+    </ul>
+    <p><strong>✓ Kết quả:</strong> PSU cần = <strong>577.5 W</strong>. Khuyến nghị: <strong>PSU 650W 80 PLUS Gold</strong> (vừa đủ công suất, đạt hiệu suất tối ưu ở 59% tải, có dư địa nâng cấp).</p>
+    <p><strong>🔍 Kiểm tra:</strong> Đảo ngược: 577.5 / 1.5 = 385 = 105 + 220 + 60 ✓. 650W ≥ 577.5W ✓ (đủ). Nếu chọn 450W: 450 / 1.5 = 300 W &lt; 385 W → không đủ → loại ✓. Nếu chọn 850W: tải thực = 385/850 = 45.3% (dưới vùng tối ưu) → lãng phí.</p>
+  </div>
+</div>
+
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -991,6 +1173,5 @@ new Quiz('quiz-1', [
   <a href="../index.html" class="btn">🏠 Về mục lục</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -257,7 +258,7 @@ new StepReveal('step-demo', steps);
     <div id="ham-result" class="mt-2"></div>
   </div>
 
-  <!-- Tab 2: Position correlation table -->
+  <!-- Tab 2: Position correlation table + interactive decomposition -->
   <div class="tab-content">
     <p>Bảng tương quan vị trí — phân rã mỗi vị trí thành tổng các lũy thừa 2. Đây là "chìa khóa" để nhớ công thức tính C1, C2, C3.</p>
     <table>
@@ -279,6 +280,21 @@ new StepReveal('step-demo', steps);
         <li><strong>C3</strong> phụ trách các vị trí có số 4 trong phân rã: 5, 6, 7 → C3 = i2 ⊕ i3 ⊕ i4.</li>
       </ul>
       <p><strong>Mẹo nhớ</strong>: "Ck = XOR của các bit dữ liệu có vị trí chứa $2^k$ trong phân rã".</p>
+    </div>
+
+    <hr style="margin: 24px 0; border: none; border-top: 1px dashed var(--border-strong);">
+
+    <div class="callout callout-example">
+      <div class="callout-title">🔍 Phân rã tương tác — nhập 1 vị trí để xem chi tiết</div>
+      <p>Nhập vị trí cần phân rã (1 đến 7). Chương trình sẽ phân rã vị trí đó thành tổng các lũy thừa 2, chỉ ra các bit kiểm tra phụ trách, và liệt kê các bit dữ liệu mà mỗi bit kiểm tra tính vào vị trí này.</p>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap: wrap; margin-top: 12px;">
+        <label for="dec-pos"><strong>Nhập vị trí (1-7):</strong></label>
+        <input type="number" id="dec-pos" value="7" min="1" max="7" style="width:80px; text-align:center; font-family: var(--font-mono); font-size: 1.1rem;">
+        <button class="btn" onclick="decomposePosition()">Phân rã vị trí!</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('dec-pos').value=3; decomposePosition();">Thử vị trí 3</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('dec-pos').value=5; decomposePosition();">Thử vị trí 5</button>
+      </div>
+      <div id="dec-result" class="mt-2"></div>
     </div>
   </div>
 
@@ -388,72 +404,252 @@ function findR() {
   html += `<div class="result-box"><span class="result-label">Kết quả:</span>Với m=${m}, cần r = <strong>${finalR}</strong> → mã <strong>H(${n}, ${m})</strong> (${n} bit tổng)</div>`;
   out.innerHTML = html;
 }
+
+// Tab 2: Position decomposition
+function decomposePosition() {
+  const out = document.getElementById('dec-result');
+  const pos = parseInt(document.getElementById('dec-pos').value);
+  if (isNaN(pos) || pos < 1 || pos > 7) {
+    out.innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Vị trí phải là số nguyên từ 1 đến 7.</div>';
+    return;
+  }
+
+  // Binary representation of position (3 bits)
+  const bin3 = pos.toString(2).padStart(3, '0');
+  // Which powers of 2 (1, 2, 4) appear in the decomposition
+  const powers = [];
+  if (bin3[2] === '1') powers.push({bit: '1', value: 1, checkName: 'C1', checkPos: 1});
+  if (bin3[1] === '1') powers.push({bit: '2', value: 2, checkName: 'C2', checkPos: 2});
+  if (bin3[0] === '1') powers.push({bit: '4', value: 4, checkName: 'C3', checkPos: 4});
+
+  // Determine if position is check or data
+  const isCheckBit = (pos === 1 || pos === 2 || pos === 4);
+  const symbolMap = {1: 'C1', 2: 'C2', 3: 'i1', 4: 'C3', 5: 'i2', 6: 'i3', 7: 'i4'};
+  const symbol = symbolMap[pos];
+
+  let html = `<div class="callout callout-theory"><div class="callout-title">📋 Phân tích vị trí ${pos}</div>`;
+  html += `<p><strong>Bước 1: Biểu diễn nhị phân (3 bit, vì 7 = 111₂)</strong></p>`;
+  html += `<div class="code-block">Vị trí ${pos} = ${bin3} (nhị phân 3 bit)</div>`;
+
+  html += `<p class="mt-2"><strong>Bước 2: Phân rã thành tổng các lũy thừa 2</strong></p>`;
+  const decStr = powers.map(p => p.value).join(' + ');
+  html += `<div class="code-block">${pos} = ${decStr}</div>`;
+
+  html += `<p class="mt-2"><strong>Bước 3: Xác định loại bit tại vị trí ${pos}</strong></p>`;
+  if (isCheckBit) {
+    const ck = symbol;
+    html += `<p>Vị trí ${pos} = $2^k$ → đây là <strong>bit kiểm tra ${ck}</strong> (vị trí của chính ${ck}).</p>`;
+    html += `<p><strong>Ý nghĩa:</strong> ${ck} "phụ trách" tất cả các vị trí khác có chứa ${powers[0].value} trong phân rã (tức là bit ${powers[0].bit} của biểu diễn nhị phân = 1).</p>`;
+
+    // List which data bits Ck covers
+    html += `<p class="mt-2"><strong>Bước 4: Các bit dữ liệu mà ${ck} phụ trách</strong> (tất cả vị trí có chứa ${powers[0].value} trong phân rã, TRỪ vị trí ${pos} của chính ${ck}):</p>`;
+    const covers = [];
+    for (let p = 1; p <= 7; p++) {
+      if (p === pos) continue;
+      const pb = p.toString(2).padStart(3, '0');
+      const bitIdx = powers[0].value === 1 ? 2 : (powers[0].value === 2 ? 1 : 0);
+      if (pb[bitIdx] === '1') {
+        covers.push({pos: p, sym: symbolMap[p]});
+      }
+    }
+    html += `<table style="font-size:0.9rem;"><tr><th>Vị trí</th>${covers.map(c => `<th>${c.pos}</th>`).join('')}</tr>`;
+    html += `<tr><td>Ký hiệu</td>${covers.map(c => `<td>${c.sym}</td>`).join('')}</tr></table>`;
+    const formula = covers.map(c => c.sym).join(' ⊕ ');
+    html += `<div class="result-box"><span class="result-label">Công thức:</span>${ck} = ${formula} (parity chẵn = XOR)</div>`;
+  } else {
+    html += `<p>Vị trí ${pos} KHÔNG phải lũy thừa 2 → đây là <strong>bit dữ liệu ${symbol}</strong>.</p>`;
+    html += `<p class="mt-2"><strong>Bước 4: Các bit kiểm tra phụ trách vị trí ${pos}</strong> (tức là các bit Ck có chứa vị trí ${pos} trong nhóm của chúng):</p>`;
+    html += `<table style="font-size:0.9rem;"><tr><th>Lũy thừa 2</th><th>Bit kiểm tra</th><th>Vị trí Ck</th></tr>`;
+    powers.forEach(p => {
+      html += `<tr><td>${p.value}</td><td><strong>${p.checkName}</strong></td><td>${p.checkPos}</td></tr>`;
+    });
+    html += `</table>`;
+    html += `<p class="mt-2">Tức là <strong>${symbol}</strong> (vị trí ${pos}) xuất hiện trong công thức tính của: <strong>${powers.map(p => p.checkName).join(', ')}</strong>.</p>`;
+    html += `<div class="result-box"><span class="result-label">Kết luận:</span>${symbol} được "bảo vệ" bởi ${powers.length} bit kiểm tra: ${powers.map(p => p.checkName).join(', ')}. Nếu ${symbol} bị lật, ${powers.length} bit kiểm tra này sẽ phát hiện được → syndrome = ${bin3} = ${pos} → chỉ đúng vị trí ${pos}.</div>`;
+  }
+  html += `</div>`;
+  out.innerHTML = html;
+  if (typeof renderMathInElement !== 'undefined') {
+    renderMathInElement(out, {delimiters:[{left:'$',right:'$',display:false}]});
+  }
+}
+
+// Initialize Tab 2 on page load
+window.addEventListener('DOMContentLoaded', () => {
+  decomposePosition();
+});
 </script>
 
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự tính C1, C2, C3 và ghép mã 7 bit trước, sau đó bấm "Xem đáp án".</p>
+<p>Hãy tự tính C1, C2, C3 và ghép mã 7 bit trước, sau đó bấm "Xem đáp án" để đối chiếu từng bước.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Sinh mã Hamming H(7,4) cho dữ liệu <strong>i4i3i2i1 = 0110</strong>.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-9-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-9-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Mã Hamming H(7,4) với parity chẵn (XOR). Bit kiểm tra đặt ở vị trí lũy thừa 2 (1, 2, 4), bit dữ liệu ở vị trí còn lại (3, 5, 6, 7).</p>
+    <p><strong>💡 Cách áp dụng:</strong> Đặt i4→vị trí 7, i3→6, i2→5, i1→3. Tính 3 bit kiểm tra C3=i2⊕i3⊕i4, C2=i1⊕i3⊕i4, C1=i1⊕i2⊕i4. Cuối cùng ghép mã 7 bit theo thứ tự vị trí 7→1.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: Tách dữ liệu</strong>
+  i4i3i2i1 = 0110 → i4=0, i3=1, i2=1, i1=0
 
-<script>
-const exercises = [
-  {
-    question: "Sinh mã Hamming H(7,4) cho dữ liệu <strong>i4i3i2i1 = 0110</strong>.",
-    answer: `i4=0, i3=1, i2=1, i1=0.<br><br>
-    <strong>Tính bit kiểm tra:</strong><br>
-    C3 = i2 ⊕ i3 ⊕ i4 = 1 ⊕ 1 ⊕ 0 = <strong>0</strong><br>
-    C2 = i1 ⊕ i3 ⊕ i4 = 0 ⊕ 1 ⊕ 0 = <strong>1</strong><br>
-    C1 = i1 ⊕ i2 ⊕ i4 = 0 ⊕ 1 ⊕ 0 = <strong>1</strong><br><br>
-    <strong>Bố trí (vị trí 7→1):</strong> i4 i3 i2 C3 i1 C2 C1 = 0 1 1 0 0 1 1<br><br>
-    <strong>Mã H(7,4) = 0110011</strong>`
-  },
-  {
-    question: "Sinh mã Hamming H(7,4) cho dữ liệu <strong>i4i3i2i1 = 1101</strong>.",
-    answer: `i4=1, i3=1, i2=0, i1=1.<br><br>
-    <strong>Tính bit kiểm tra:</strong><br>
-    C3 = i2 ⊕ i3 ⊕ i4 = 0 ⊕ 1 ⊕ 1 = <strong>0</strong><br>
-    C2 = i1 ⊕ i3 ⊕ i4 = 1 ⊕ 1 ⊕ 1 = <strong>1</strong><br>
-    C1 = i1 ⊕ i2 ⊕ i4 = 1 ⊕ 0 ⊕ 1 = <strong>0</strong><br><br>
-    <strong>Bố trí (vị trí 7→1):</strong> i4 i3 i2 C3 i1 C2 C1 = 1 1 0 0 1 1 0<br><br>
-    <strong>Mã H(7,4) = 1100110</strong>`
-  },
-  {
-    question: "Sinh mã Hamming H(7,4) cho dữ liệu <strong>i4i3i2i1 = 0011</strong>.",
-    answer: `i4=0, i3=0, i2=1, i1=1.<br><br>
-    <strong>Tính bit kiểm tra:</strong><br>
-    C3 = i2 ⊕ i3 ⊕ i4 = 1 ⊕ 0 ⊕ 0 = <strong>1</strong><br>
-    C2 = i1 ⊕ i3 ⊕ i4 = 1 ⊕ 0 ⊕ 0 = <strong>1</strong><br>
-    C1 = i1 ⊕ i2 ⊕ i4 = 1 ⊕ 1 ⊕ 0 = <strong>0</strong><br><br>
-    <strong>Bố trí (vị trí 7→1):</strong> i4 i3 i2 C3 i1 C2 C1 = 0 0 1 1 1 1 0<br><br>
-    <strong>Mã H(7,4) = 0011110</strong>`
-  },
-  {
-    question: "Tìm số bit kiểm tra r cần thiết cho m = 5 bit dữ liệu. Mã Hamming ký hiệu là gì?",
-    answer: `Áp dụng công thức 2^r ≥ m + r + 1 = 5 + r + 1 = 6 + r.<br><br>
-    Thử r = 3: 2³ = 8 ≥ 6 + 3 = 9? → 8 ≥ 9 <strong>Sai</strong>.<br>
-    Thử r = 4: 2⁴ = 16 ≥ 6 + 4 = 10? → 16 ≥ 10 <strong>Đúng</strong>! ✓<br><br>
-    Vậy r = 4. Mã ký hiệu: <strong>H(9, 5)</strong> (n = m + r = 5 + 4 = 9).<br><br>
-    <em>Các vị trí bit kiểm tra: 1, 2, 4, 8. Vị trí bit dữ liệu: 3, 5, 6, 7, 9.</em>`
-  }
-];
+<strong>Bước 2: Đặt dữ liệu vào 7 vị trí</strong>
+  Vị trí: 7  6  5  4  3  2  1
+  Ký hiệu: i4 i3 i2 C3 i1 C2 C1
+  Giá trị: 0  1  1  ?  0  ?  ?
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+<strong>Bước 3: Tính bit kiểm tra (parity chẵn = XOR)</strong>
+  C3 = i2 ⊕ i3 ⊕ i4 = 1 ⊕ 1 ⊕ 0
+     1 ⊕ 1 = 0
+     0 ⊕ 0 = 0
+     → C3 = 0   (phụ trách vị trí 5, 6, 7 có chứa 4)
+
+  C2 = i1 ⊕ i3 ⊕ i4 = 0 ⊕ 1 ⊕ 0
+     0 ⊕ 1 = 1
+     1 ⊕ 0 = 1
+     → C2 = 1   (phụ trách vị trí 3, 6, 7 có chứa 2)
+
+  C1 = i1 ⊕ i2 ⊕ i4 = 0 ⊕ 1 ⊕ 0
+     0 ⊕ 1 = 1
+     1 ⊕ 0 = 1
+     → C1 = 1   (phụ trách vị trí 3, 5, 7 có chứa 1)
+
+<strong>Bước 4: Ghép mã 7 bit (đọc vị trí 7 → 1)</strong>
+  Vị trí:  7  6  5  4  3  2  1
+  Ký hiệu: i4 i3 i2 C3 i1 C2 C1
+  Giá trị: 0  1  1  0  0  1  1</div>
+    <p><strong>✓ Kết quả:</strong> Mã H(7,4) = <strong>0110011</strong></p>
+    <p><strong>🔍 Kiểm tra (parity chẵn phải = 0):</strong></p>
+    <div class="code-block">C3 ⊕ i2 ⊕ i3 ⊕ i4 = 0 ⊕ 1 ⊕ 1 ⊕ 0 = 0 ✓
+C2 ⊕ i1 ⊕ i3 ⊕ i4 = 1 ⊕ 0 ⊕ 1 ⊕ 0 = 0 ✓
+C1 ⊕ i1 ⊕ i2 ⊕ i4 = 1 ⊕ 0 ⊕ 1 ⊕ 0 = 0 ✓
+→ Đúng quy tắc parity chẵn. Mã hợp lệ.</div>
+  </div>
+</div>
+
+<!-- Bài 2 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Sinh mã Hamming H(7,4) cho dữ liệu <strong>i4i3i2i1 = 1101</strong>.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-9-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-9-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Cùng Bài 1 — H(7,4) parity chẵn, XOR. C3 = i2⊕i3⊕i4, C2 = i1⊕i3⊕i4, C1 = i1⊕i2⊕i4.</p>
+    <p><strong>💡 Cách áp dụng:</strong> i4=1, i3=1, i2=0, i1=1. Đặt vào vị trí 7, 6, 5, 3. Tính C3, C2, C1 rồi ghép mã 7 bit vị trí 7→1.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: Tách dữ liệu</strong>
+  i4i3i2i1 = 1101 → i4=1, i3=1, i2=0, i1=1
+
+<strong>Bước 2: Đặt dữ liệu vào 7 vị trí</strong>
+  Vị trí: 7  6  5  4  3  2  1
+  Ký hiệu: i4 i3 i2 C3 i1 C2 C1
+  Giá trị: 1  1  0  ?  1  ?  ?
+
+<strong>Bước 3: Tính bit kiểm tra</strong>
+  C3 = i2 ⊕ i3 ⊕ i4 = 0 ⊕ 1 ⊕ 1
+     0 ⊕ 1 = 1
+     1 ⊕ 1 = 0
+     → C3 = 0
+
+  C2 = i1 ⊕ i3 ⊕ i4 = 1 ⊕ 1 ⊕ 1
+     1 ⊕ 1 = 0
+     0 ⊕ 1 = 1
+     → C2 = 1
+
+  C1 = i1 ⊕ i2 ⊕ i4 = 1 ⊕ 0 ⊕ 1
+     1 ⊕ 0 = 1
+     1 ⊕ 1 = 0
+     → C1 = 0
+
+<strong>Bước 4: Ghép mã 7 bit (vị trí 7 → 1)</strong>
+  Vị trí:  7  6  5  4  3  2  1
+  Giá trị: 1  1  0  0  1  1  0</div>
+    <p><strong>✓ Kết quả:</strong> Mã H(7,4) = <strong>1100110</strong></p>
+    <p><strong>🔍 Kiểm tra:</strong></p>
+    <div class="code-block">C3 ⊕ i2 ⊕ i3 ⊕ i4 = 0 ⊕ 0 ⊕ 1 ⊕ 1 = 0 ✓
+C2 ⊕ i1 ⊕ i3 ⊕ i4 = 1 ⊕ 1 ⊕ 1 ⊕ 1 = 0 ✓
+C1 ⊕ i1 ⊕ i2 ⊕ i4 = 0 ⊕ 1 ⊕ 0 ⊕ 1 = 0 ✓
+→ Mã hợp lệ.</div>
+  </div>
+</div>
+
+<!-- Bài 3 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Sinh mã Hamming H(7,4) cho dữ liệu <strong>i4i3i2i1 = 0011</strong>.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-9-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-9-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> H(7,4) parity chẵn. C3 = i2⊕i3⊕i4, C2 = i1⊕i3⊕i4, C1 = i1⊕i2⊕i4.</p>
+    <p><strong>💡 Cách áp dụng:</strong> i4=0, i3=0, i2=1, i1=1. Đặt vào vị trí 7, 6, 5, 3. Tính C3, C2, C1 và ghép mã.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block"><strong>Bước 1: Tách dữ liệu</strong>
+  i4i3i2i1 = 0011 → i4=0, i3=0, i2=1, i1=1
+
+<strong>Bước 2: Đặt dữ liệu vào 7 vị trí</strong>
+  Vị trí: 7  6  5  4  3  2  1
+  Ký hiệu: i4 i3 i2 C3 i1 C2 C1
+  Giá trị: 0  0  1  ?  1  ?  ?
+
+<strong>Bước 3: Tính bit kiểm tra</strong>
+  C3 = i2 ⊕ i3 ⊕ i4 = 1 ⊕ 0 ⊕ 0
+     1 ⊕ 0 = 1
+     1 ⊕ 0 = 1
+     → C3 = 1
+
+  C2 = i1 ⊕ i3 ⊕ i4 = 1 ⊕ 0 ⊕ 0
+     1 ⊕ 0 = 1
+     1 ⊕ 0 = 1
+     → C2 = 1
+
+  C1 = i1 ⊕ i2 ⊕ i4 = 1 ⊕ 1 ⊕ 0
+     1 ⊕ 1 = 0
+     0 ⊕ 0 = 0
+     → C1 = 0
+
+<strong>Bước 4: Ghép mã 7 bit (vị trí 7 → 1)</strong>
+  Vị trí:  7  6  5  4  3  2  1
+  Giá trị: 0  0  1  1  1  1  0</div>
+    <p><strong>✓ Kết quả:</strong> Mã H(7,4) = <strong>0011110</strong></p>
+    <p><strong>🔍 Kiểm tra:</strong></p>
+    <div class="code-block">C3 ⊕ i2 ⊕ i3 ⊕ i4 = 1 ⊕ 1 ⊕ 0 ⊕ 0 = 0 ✓
+C2 ⊕ i1 ⊕ i3 ⊕ i4 = 1 ⊕ 1 ⊕ 0 ⊕ 0 = 0 ✓
+C1 ⊕ i1 ⊕ i2 ⊕ i4 = 0 ⊕ 1 ⊕ 1 ⊕ 0 = 0 ✓
+→ Mã hợp lệ.</div>
+  </div>
+</div>
+
+<!-- Bài 4 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Tìm số bit kiểm tra r cần thiết cho m = 5 bit dữ liệu. Mã Hamming ký hiệu là gì?</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-9-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-9-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Điều kiện Hamming: $2^r \geq m + r + 1$, với m = số bit dữ liệu, r = số bit kiểm tra.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Thử các giá trị r tăng dần từ 1, 2, 3, ... cho đến khi bất đẳng thức thỏa mãn. Giá trị r nhỏ nhất thỏa mãn chính là số bit kiểm tra cần thiết.</p>
+    <p><strong>🧮 Tính toán từng bước (với m = 5):</strong></p>
+    <div class="code-block">Thử r = 1:  2¹ = 2  ≥ 5 + 1 + 1 = 7?   → 2 ≥ 7    Sai ✗
+Thử r = 2:  2² = 4  ≥ 5 + 2 + 1 = 8?   → 4 ≥ 8    Sai ✗
+Thử r = 3:  2³ = 8  ≥ 5 + 3 + 1 = 9?   → 8 ≥ 9    Sai ✗
+Thử r = 4:  2⁴ = 16 ≥ 5 + 4 + 1 = 10?  → 16 ≥ 10  Đúng ✓</div>
+    <p><strong>✓ Kết quả:</strong> r = 4. Mã ký hiệu: <strong>H(9, 5)</strong> (vì n = m + r = 5 + 4 = 9 bit tổng).</p>
+    <p><strong>🔍 Kiểm tra & mở rộng:</strong></p>
+    <div class="code-block">Kiểm tra lại: 2⁴ = 16 ≥ 9 (= m+r+1 = 5+4+1) → Đúng ✓
+
+Bố trí vị trí cho H(9, 5):
+  - Bit kiểm tra (lũy thừa 2): vị trí 1, 2, 4, 8 → 4 bit C1, C2, C3, C4
+  - Bit dữ liệu (còn lại):       vị trí 3, 5, 6, 7, 9 → 5 bit i1, i2, i3, i4, i5
+  - Tổng: 4 + 5 = 9 bit ✓
+
+Công thức tính (theo quy tắc Ck = XOR của các bit dữ liệu có vị trí chứa 2^k):
+  C4 = XOR của các i ở vị trí có chứa 8 (= 2³): vị trí 9 → i5
+  C3 = XOR của các i ở vị trí có chứa 4 (= 2²): vị trí 5, 6, 7 → i2, i3, i4
+  C2 = XOR của các i ở vị trí có chứa 2 (= 2¹): vị trí 3, 6, 7 → i1, i3, i4
+  C1 = XOR của các i ở vị trí có chứa 1 (= 2⁰): vị trí 3, 5, 7, 9 → i1, i2, i4, i5</div>
+  </div>
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -614,6 +810,5 @@ new Quiz('quiz-1', [
   <a href="10-hamming-sua-loi.html" class="btn">Bài 10: Hamming - Sửa lỗi →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

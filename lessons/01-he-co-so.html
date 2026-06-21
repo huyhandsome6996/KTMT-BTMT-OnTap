@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -518,64 +519,134 @@ function convertFrac() {
 
 <p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
 
-<div id="practice-exercises"></div>
+<div id="practice-exercises">
 
-<script>
-const exercises = [
-  {
-    question: "Đổi <strong>0xBEEF</strong> sang thập phân.",
-    answer: `B=11, E=14, E=14, F=15<br>
-    0xBEEF = 11·16³ + 14·16² + 14·16¹ + 15·16⁰<br>
-           = 11·4096 + 14·256 + 14·16 + 15·1<br>
-           = 45056 + 3584 + 224 + 15<br>
-           = <strong>48879</strong>₁₀`
-  },
-  {
-    question: "Đổi <strong>500₁₀</strong> sang hexa và nhị phân 16 bit.",
-    answer: `500 : 16 = 31 dư 4<br>
-    31 : 16 = 1 dư 15 (F)<br>
-    1 : 16 = 0 dư 1<br>
-    → 500₁₀ = <strong>0x01F4</strong><br>
-    <br>
-    Nhị phân 16 bit: 0000 0001 1111 0100<br>
-    → <strong>0000000111110100₂</strong>`
-  },
-  {
-    question: "Đổi <strong>0.4375₁₀</strong> sang nhị phân.",
-    answer: `0.4375 × 2 = 0.875 → lấy 0, còn 0.875<br>
-    0.875 × 2 = 1.75 → lấy 1, còn 0.75<br>
-    0.75 × 2 = 1.5 → lấy 1, còn 0.5<br>
-    0.5 × 2 = 1.0 → lấy 1, còn 0 → DỪNG<br>
-    <br>
-    → 0.4375₁₀ = <strong>0.0111₂</strong>`
-  },
-  {
-    question: "Đổi <strong>10110111₂</strong> sang hexa và thập phân.",
-    answer: `Gom 4 bit từ phải: 1011 0111<br>
-    1011 = 11 = B, 0111 = 7<br>
-    → 10110111₂ = <strong>0xB7</strong><br>
-    <br>
-    Thập phân: 1·128 + 0·64 + 1·32 + 1·16 + 0·8 + 1·4 + 1·2 + 1·1<br>
-             = 128 + 32 + 16 + 4 + 2 + 1<br>
-             = <strong>183</strong>₁₀`
-  }
-];
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 1</div>
+    <p>Đổi <strong>0xBEEF</strong> sang thập phân.</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex1-1').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex1-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> Hex → Dec: $N = \sum d_k \cdot 16^k$</p>
+      <p><strong>💡 Cách áp dụng:</strong> Mỗi chữ số hex nhân với 16 mũ vị trí (tính từ phải, bắt đầu 0). Bảng: A=10, B=11, C=12, D=13, E=14, F=15.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>0xBEEF có 4 chữ số: B, E, E, F (từ trái sang phải)
+Vị trí k (từ phải, bắt đầu 0): F=k₀, E=k₁, E=k₂, B=k₃
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
+Giá trị từng chữ số hex:
+  B = 11,  E = 14,  E = 14,  F = 15
+
+Áp dụng công thức N = d₃·16³ + d₂·16² + d₁·16¹ + d₀·16⁰:
+  0xBEEF = B·16³ + E·16² + E·16¹ + F·16⁰
+         = 11·4096 + 14·256 + 14·16 + 15·1
+         = 45056 + 3584 + 224 + 15
+         = 48879</pre>
+      <p><strong>✓ Kết quả:</strong> 0xBEEF = <strong>48879</strong>₁₀</p>
+      <p><strong>🔍 Kiểm tra (đổi ngược Dec → Hex bằng chia 16 lấy dư):</strong></p>
+      <pre>48879 : 16 = 3054  dư 15   → F   (chữ số thấp, k=0)
+3054  : 16 = 190   dư 14   → E   (k=1)
+190   : 16 = 11    dư 14   → E   (k=2)
+11    : 16 = 0     dư 11   → B   (chữ số cao, k=3)
+→ Đọc dư từ dưới lên: BEEF ✓</pre>
     </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 2</div>
+    <p>Đổi <strong>500₁₀</strong> sang hexa và nhị phân 16 bit.</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex1-2').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex1-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong></p>
+      <ul style="padding-left: 20px;">
+        <li>Dec → Hex: <em>chia 16 lấy dư, đọc ngược từ dưới lên</em>.</li>
+        <li>Hex → Bin: mỗi chữ số hex = 4 bit (tra bảng 0000=0, ..., 1111=F).</li>
+      </ul>
+      <p><strong>💡 Cách áp dụng:</strong> Chia 500 cho 16 lấy dư, tiếp tục chia thương cho 16 đến khi thương = 0. Đọc dư ngược từ dưới lên. Pad 0 bên trái cho đủ 4 chữ số hex (= 16 bit). Đổi từng chữ số hex sang 4 bit.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Dec → Hex (chia 16 lấy dư):
+  500 : 16 = 31  dư 4       ← chữ số thấp (k=0)
+  31  : 16 = 1   dư 15 (F)  ← k=1
+  1   : 16 = 0   dư 1       ← chữ số cao (k=2)
+  → Đọc dư từ dưới lên: 1 F 4
+  → Pad 0 bên trái cho đủ 4 chữ số: 0x<strong>01F4</strong>
+
+Bước 2 — Hex → Bin 16 bit (mỗi chữ số = 4 bit):
+  0 → 0000
+  1 → 0001
+  F → 1111
+  4 → 0100
+  → Ghép lại: 0000 0001 1111 0100
+  → <strong>0000000111110100₂</strong></pre>
+      <p><strong>✓ Kết quả:</strong> 500₁₀ = <strong>0x01F4</strong> = <strong>0000000111110100₂</strong></p>
+      <p><strong>🔍 Kiểm tra (đổi ngược Hex → Dec):</strong></p>
+      <pre>0x01F4 = 0·16³ + 1·16² + 15·16¹ + 4·16⁰
+        = 0 + 256 + 240 + 4
+        = 500 ✓</pre>
+    </div>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 3</div>
+    <p>Đổi <strong>0.4375₁₀</strong> sang nhị phân.</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex1-3').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex1-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong> Phần lẻ Dec → Bin: <em>nhân 2 lấy phần nguyên, đọc xuôi từ trên xuống</em>. Dừng khi phần lẻ = 0.</p>
+      <p><strong>💡 Cách áp dụng:</strong> Lấy 0.4375 × 2, tách phần nguyên (bit kết quả) và phần lẻ. Lấy phần lẻ × 2 lặp lại. Ghép các phần nguyên theo thứ tự thu được (đọc xuôi).</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Lần 1: 0.4375 × 2 = 0.875   → lấy 0, còn 0.875
+Lần 2: 0.875  × 2 = 1.75    → lấy 1, còn 0.75
+Lần 3: 0.75   × 2 = 1.5     → lấy 1, còn 0.5
+Lần 4: 0.5    × 2 = 1.0     → lấy 1, còn 0   → DỪNG
+
+Đọc phần nguyên từ trên xuống: 0, 1, 1, 1
+→ 0.4375₁₀ = 0.0111₂</pre>
+      <p><strong>✓ Kết quả:</strong> 0.4375₁₀ = <strong>0.0111₂</strong></p>
+      <p><strong>🔍 Kiểm tra (đổi ngược Bin → Dec bằng tổng trọng số 2⁻ᵏ):</strong></p>
+      <pre>0.0111₂ = 0·2⁻¹ + 1·2⁻² + 1·2⁻³ + 1·2⁻⁴
+        = 0 + 0.25 + 0.125 + 0.0625
+        = 0.4375 ✓</pre>
+    </div>
+  </div>
+
+  <div class="callout callout-example">
+    <div class="callout-title">📝 Bài 4</div>
+    <p>Đổi <strong>10110111₂</strong> sang hexa và thập phân.</p>
+    <button class="btn btn-ghost" onclick="document.getElementById('ex1-4').classList.toggle('hidden')">Xem đáp án</button>
+    <div id="ex1-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+      <p><strong>📌 Công thức áp dụng:</strong></p>
+      <ul style="padding-left: 20px;">
+        <li>Bin → Hex: gom 4 bit từ phải sang trái, mỗi nhóm = 1 chữ số hex.</li>
+        <li>Bin → Dec: $N = \sum b_k \cdot 2^k$ (k = vị trí bit từ phải, bắt đầu 0).</li>
+      </ul>
+      <p><strong>💡 Cách áp dụng:</strong> Số có 8 bit (bội số của 4), không cần pad. Gom thành 2 nhóm 4 bit từ phải. Tra bảng hex (0000=0, ..., 1011=B, ..., 1111=F). Đổi sang thập phân: cộng các $2^k$ có bit = 1.</p>
+      <p><strong>🧮 Tính toán từng bước:</strong></p>
+      <pre>Bước 1 — Bin → Hex (gom 4 bit từ phải sang trái):
+  10110111 → 1011 | 0111
+              ↑ MSB   ↑ LSB
+
+  Tra bảng từng nhóm 4 bit:
+    1011 = 1·8 + 0·4 + 1·2 + 1·1 = 11 = B
+    0111 = 0·8 + 1·4 + 1·2 + 1·1 = 7  = 7
+  → 10110111₂ = 0xB7
+
+Bước 2 — Bin → Dec (nhân từng bit với 2^k):
+  Vị trí k (từ phải, bắt đầu 0):
+    bit:  1   0   1   1   0   1   1   1
+    k:    7   6   5   4   3   2   1   0
+    2^k: 128 64  32  16  8   4   2   1
+
+  Chỉ cộng các bit = 1:
+    = 1·128 + 1·32 + 1·16 + 1·4 + 1·2 + 1·1
+    = 128 + 32 + 16 + 4 + 2 + 1
+    = 183</pre>
+      <p><strong>✓ Kết quả:</strong> 10110111₂ = <strong>0xB7</strong> = <strong>183₁₀</strong></p>
+      <p><strong>🔍 Kiểm tra:</strong></p>
+      <pre>Hex → Dec: 0xB7 = 11·16 + 7 = 176 + 7 = 183 ✓
+Dec → Bin: 183 = 128 + 32 + 16 + 4 + 2 + 1
+             = 10110111₂ ✓</pre>
+    </div>
+  </div>
+
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -730,6 +801,5 @@ new Quiz('quiz-1', [
   <a href="02-bu-2.html" class="btn">Bài 2: Số bù 2 →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

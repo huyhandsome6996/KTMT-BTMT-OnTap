@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -507,76 +508,178 @@ function convertToDouble() {
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra. Mỗi đáp án có <strong>công thức áp dụng</strong>, <strong>cách giải</strong>, <strong>tính toán từng bước</strong>, <strong>kết quả</strong> và <strong>phần kiểm tra</strong>.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1: Đảo ngược Single 0 10000001 1000... -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Đảo ngược Single: <strong>0 10000001 10000000000000000000000</strong>. Tìm X.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-6-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-6-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> <code>X = (−1)^S × 2^(E−127) × (1.F)₂</code>. Tách 1-8-23, tính k = E − 127, tính 1.F, áp công thức.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Đề đã tách sẵn 3 trường. S = 0 → số dương. E = 10000001₂ đổi sang thập phân. F = 100...0 → 1.F = 1.1₂. Áp công thức.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Tách 3 trường (đã cho sẵn):
+  S = 0
+  E = 10000001₂ = 1·2^7 + 0·2^6 + ... + 0·2^1 + 1·2^0 = 128 + 1 = 129
+  F = 10000000000000000000000   (23 bit, chỉ có bit đầu = 1)
 
-<script>
-const exercises = [
-  {
-    question: "Đảo ngược Single: <strong>0 10000001 10000000000000000000000</strong>. Tìm X.",
-    answer: `B1: S = 0, E = 10000001₂ = 129, F = 1000...0<br>
-    B2: k = 129 − 127 = 2<br>
-    B3: 1.F = 1.1₂ = 1.5<br>
-    B4: X = (−1)^0 × 2^2 × 1.5 = 1 × 4 × 1.5 = <strong>6.0</strong><br>
-    <br>
-    <em>Kiểm tra ngược: 6.0 = 110₂ = 1.1₂ × 2^2, E = 2 + 127 = 129 = 10000001₂ ✓</em>`
-  },
-  {
-    question: "Đảo ngược Single: <strong>0xBF400000</strong>. Tìm X.",
-    answer: `B1: 0xBF400000 = 1011 1111 0100 0000 0000 0000 0000 0000<br>
-    S = 1, E = 01111110 = 126, F = 1000...0<br>
-    <br>
-    B2: k = 126 − 127 = −1 (mũ âm vì E &lt; 127)<br>
-    B3: 1.F = 1.1₂ = 1.5<br>
-    B4: X = (−1)^1 × 2^(−1) × 1.5 = −1 × 0.5 × 1.5 = <strong>−0.75</strong><br>
-    <br>
-    <em>Số có cả bit dấu S=1 (âm) và mũ k=−1 (âm). Lưu ý: hai loại "âm" này độc lập.</em>`
-  },
-  {
-    question: "Biểu diễn <strong>X = −12.625</strong> theo IEEE 754 Single Precision. (Đề thi phổ biến)",
-    answer: `B1: S = 1, |X| = 12.625<br>
-    B2: 12 = 1100₂; 0.625 = 0.101₂ → 12.625 = 1100.101₂<br>
-    B3: Dịch dấu chấm sang TRÁI 3 vị trí → 1.100101₂ × 2^3, k = 3<br>
-    B4: E = 3 + 127 = 130 = 10000010₂<br>
-    B5: F = 10010100000000000000000 (bỏ bit 1 đầu, pad 17 số 0)<br>
-    B6: 1 | 10000010 | 10010100000000000000000<br>
-    <br>
-    Hex: 1011 1111 0100 1010 0000 0000 0000 0000 = <strong>0xBF4A0000</strong><br>
-    <br>
-    Kiểm tra: X = (−1)^1 × 2^(130−127) × 1.100101₂<br>
-            = −1 × 8 × (1 + 0.5 + 0.0625 + 0.015625)<br>
-            = −1 × 8 × 1.578125 = −12.625 ✓`
-  },
-  {
-    question: "Biểu diễn <strong>X = 1.0</strong> theo Double Precision. (Số đẹp, dễ tính)",
-    answer: `B1: S = 0, |X| = 1.0 = 1.0₂<br>
-    B2: Đã chuẩn → 1.0₂ × 2^0, k = 0 (không cần dịch dấu chấm)<br>
-    B3: E = 0 + 1023 = 1023 = 01111111111₂ (11 bit)<br>
-    B4: F = 0000...0000 (52 số 0, vì phần sau dấu chấm không có gì)<br>
-    B5: 0 | 01111111111 | 0000...0000 (52 số 0)<br>
-    <br>
-    Hex: 0011 1111 1111 0000 0000...0000 = <strong>0x3FF0000000000000</strong><br>
-    <br>
-    <em>Khi gặp đề Double với X = 1.0, kết quả E = 01111111111 (10 bit 1 ở giữa). Đây là "mẫu" dễ nhận biết: bất kỳ số nào có E = 01111111111 đều có mũ thực k = 0, tức là dạng 1.x.</em>`
-  }
-];
+Bước 2 — Tính mũ thực k = E − 127:
+  k = 129 − 127 = 2   (mũ dương → |X| > 1)
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem; line-height: 1.7;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+Bước 3 — Tính significand 1.F:
+  1.F = 1.1000...0₂ = 1.1₂
+      = 1 + 1·2^(−1) = 1 + 0.5 = 1.5
+
+Bước 4 — Áp công thức:
+  X = (−1)^S × 2^k × (1.F)
+  X = (−1)^0 × 2^2 × 1.5
+  X = 1 × 4 × 1.5
+  X = 6.0</div>
+    <p><strong>✓ Kết quả:</strong> 0 10000001 1000...0 = <strong>X = 6.0</strong></p>
+    <p><strong>🔍 Kiểm tra (đảo ngược ngược lại):</strong></p>
+    <div class="code-block">Từ X = 6.0 → tính lại IEEE 754:
+  S = 0 (dương)
+  |X| = 6.0 = 110₂ → dịch dấu chấm sang TRÁI 2 vị trí → 1.1₂ × 2^2 → k = 2
+  E = 2 + 127 = 129 = 10000001₂
+  F = 1000...0 (23 bit)
+  Ghép: 0 | 10000001 | 10000000000000000000000   ✓ (khớp đề bài)</div>
+  </div>
+</div>
+
+<!-- Bài 2: Đảo ngược Single 0xBF400000 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Đảo ngược Single: <strong>0xBF400000</strong>. Tìm X.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-6-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-6-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> <code>X = (−1)^S × 2^(E−127) × (1.F)₂</code>. Quy trình: hex → 32 bit → tách 1-8-23 → tính k → tính 1.F → áp công thức.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Đổi hex → 32 bit nhị phân. S = 1 (âm) vì hex BF bắt đầu bằng bit 1. E = 01111110 = 126 → k = −1 (mũ âm!). F = 100...0 → 1.F = 1.5.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Hex → 32 bit + tách:
+  0xBF400000 = 1011 1111 0100 0000 0000 0000 0000 0000
+  S = 1   (bit đầu = 1 → số âm)
+  E = 01111110 = 0·2^7 + 1·2^6 + 1·2^5 + 1·2^4 + 1·2^3 + 1·2^2 + 1·2^1 + 0·2^0
+               = 64 + 32 + 16 + 8 + 4 + 2 = 126
+  F = 10000000000000000000000
+
+Bước 2 — Tính mũ thực k = E − 127:
+  k = 126 − 127 = −1   (mũ âm vì E < 127 → |X| < 1)
+
+Bước 3 — Tính 1.F:
+  1.F = 1.1000...0₂ = 1.1₂ = 1 + 0.5 = 1.5
+
+Bước 4 — Áp công thức:
+  X = (−1)^1 × 2^(−1) × 1.5
+  X = (−1) × 0.5 × 1.5
+  X = −0.75</div>
+    <p><strong>✓ Kết quả:</strong> 0xBF400000 = <strong>X = −0.75</strong></p>
+    <p><strong>🔍 Kiểm tra (đảo ngược ngược lại):</strong></p>
+    <div class="code-block">Từ X = −0.75 → tính lại IEEE 754:
+  S = 1 (âm)
+  |X| = 0.75 = 0.5 + 0.25 = 0.11₂ → dịch dấu chấm sang PHẢI 1 vị trí
+  → 1.1₂ × 2^(−1), k = −1
+  E = −1 + 127 = 126 = 01111110₂
+  F = 1000...0 (23 bit)
+  Ghép: 1 | 01111110 | 10000000000000000000000
+       = 10111111010000000000000000000000
+       = 1011 1111 0100 0000 0000 0000 0000 0000
+       = 0xBF400000   ✓ (khớp đề bài)
+
+  Lưu ý: Số có cả bit dấu S=1 (âm) và mũ k=−1 (âm). Hai loại "âm" này độc lập!</div>
+  </div>
+</div>
+
+<!-- Bài 3: −12.625 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Biểu diễn <strong>X = −12.625</strong> theo IEEE 754 Single Precision. <em>(Đề thi phổ biến)</em></p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-6-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-6-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> S = 1 · E = k + 127 · chuẩn hóa <code>1.F × 2^k</code> · ghép <code>S | E (8) | F (23)</code>.</p>
+    <p><strong>💡 Cách áp dụng:</strong> S = 1. Đổi |X| = 12.625 sang nhị phân (12 = 1100₂, 0.625 = 0.101₂). Vì |X| ≥ 1 → dịch dấu chấm sang TRÁI để đưa bit 1 đầu lên trước dấu chấm.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Tách dấu: X = −12.625 &lt; 0 → S = 1, |X| = 12.625
+
+Bước 2 — Đổi |X| sang nhị phân:
+  Phần nguyên 12 = 1100₂   (12 → 6 dư 0 → 3 dư 0 → 1 dư 1 → 0 dư 1)
+  Phần lẻ 0.625:
+    0.625 × 2 = 1.25  → 1
+    0.25  × 2 = 0.5   → 0
+    0.5   × 2 = 1.0   → 1, còn 0 → DỪNG
+    → 0.625 = 0.101₂
+  → 12.625₁₀ = 1100.101₂
+
+Bước 3 — Chuẩn hóa về 1.F × 2^k:
+  1100.101₂ có bit 1 đầu ở vị trí thứ 4 từ dấu chấm
+  → dịch dấu chấm sang TRÁI 3 vị trí
+  → 1100.101₂ = 1.100101₂ × 2^3   → k = 3
+
+Bước 4 — Tính E = k + 127:
+  E = 3 + 127 = 130 = 10000010₂
+
+Bước 5 — Tạo F (23 bit):
+  Significand = 1.100101 → bỏ bit 1 đầu → phần sau dấu chấm = "100101"
+  Pad thêm 17 số 0 → F = 10010100000000000000000
+
+Bước 6 — Ghép S | E | F:
+  1 | 10000010 | 10010100000000000000000
+  = 11000001010010100000000000000000
+
+  Đổi hex: 1100 0001 0100 1010 0000 0000 0000 0000
+  = 0xC14A0000
+
+  (Lưu ý: bit dấu = 1 → hex đầu là C, không phải 0x41... như số dương 12.625)</div>
+    <p><strong>✓ Kết quả:</strong> −12.625₁₀ = 1|10000010|10010100000000000000000 = <strong>0xC14A0000</strong></p>
+    <p><strong>🔍 Kiểm tra (đảo ngược):</strong></p>
+    <div class="code-block">X = (−1)^1 × 2^(130−127) × 1.100101₂
+  = (−1) × 2^3 × (1 + 0.5 + 0.0625 + 0.015625)
+  = (−1) × 8 × 1.578125
+  = −12.625   ✓ (khớp đề bài)</div>
+  </div>
+</div>
+
+<!-- Bài 4: 1.0 theo Double -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Biểu diễn <strong>X = 1.0</strong> theo Double Precision. <em>(Số đẹp, dễ tính)</em></p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-6-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-6-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> Double = S(1) + E(11) + F(52) = 64 bit · bias = 1023 · E = k + 1023 · ghép <code>S | E (11 bit) | F (52 bit)</code>.</p>
+    <p><strong>💡 Cách áp dụng:</strong> S = 0. |X| = 1.0 = 1.0₂ đã chuẩn → k = 0. E = 0 + 1023 = 1023 = 01111111111₂ (11 bit). F = 52 số 0 (vì phần sau dấu chấm rỗng).</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Tách dấu: X = 1.0 > 0 → S = 0, |X| = 1.0 = 1.0₂
+
+Bước 2 — Chuẩn hóa:
+  1.0₂ đã có bit 1 đầu đứng trước dấu chấm → ĐÃ CHUẨN
+  → 1.0₂ × 2^0, k = 0 (không dịch dấu chấm)
+
+Bước 3 — Tính E (Double bias = 1023):
+  E = 0 + 1023 = 1023
+  1023 = 01111111111₂   (11 bit: 10 bit 1 ở giữa + 0 ở 2 đầu)
+
+Bước 4 — Tạo F (52 bit):
+  Significand = 1.0 → bỏ bit 1 đầu → phần sau dấu chấm = ""
+  Pad 52 số 0 → F = 0000000000000000000000000000000000000000000000000000
+
+Bước 5 — Ghép S | E | F (1 + 11 + 52 = 64 bit):
+  0 | 01111111111 | 0000...0000 (52 số 0)
+  = 0011111111110000000000000000000000000000000000000000000000000000
+
+  Đổi hex (gom 4 bit, 64 bit = 16 nhóm):
+  0011 1111 1111 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
+  = 0x3FF0000000000000</div>
+    <p><strong>✓ Kết quả:</strong> 1.0₁₀ = <strong>0x3FF0000000000000</strong> (Double Precision)</p>
+    <p><strong>🔍 Kiểm tra (đảo ngược):</strong></p>
+    <div class="code-block">X = (−1)^0 × 2^(1023−1023) × 1.0
+  = 1 × 2^0 × 1.0
+  = 1 × 1 × 1.0
+  = 1.0   ✓ (khớp đề bài)
+
+  Dấu hiệu nhận biết Double: E = 01111111111 (= 1023) → k = 0 → số dạng 1.x.
+  Bất kỳ số Double nào có E = 01111111111 đều có mũ thực k = 0.</div>
+  </div>
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -750,6 +853,5 @@ X = (−1)^0 × 2^(1025−1023) × 1.011₂
   <a href="07-parity.html" class="btn">Bài 7: Parity + VRC/LRC →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

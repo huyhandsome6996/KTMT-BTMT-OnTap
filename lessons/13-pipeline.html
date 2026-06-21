@@ -22,6 +22,7 @@
   .pipe-stage-forward { background: #ffeb3b; color: #5f4300; font-weight: bold; }
   .pipe-stage-stall { background: var(--accent); color: white; font-weight: bold; }
 </style>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -314,19 +315,39 @@ new StepReveal('step-demo', steps);
 
   <!-- Tab 2 -->
   <div class="tab-content">
-    <p>Sơ đồ cố định 5 lệnh chạy qua 5 giai đoạn pipeline:</p>
-    <button class="btn" onclick="drawPipe5()">Vẽ sơ đồ pipeline!</button>
+    <p>Nhập số lệnh N (1-10) để vẽ sơ đồ pipeline dạng bảng N × 5 giai đoạn (IF, ID, EX, MEM, RS):</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+      <div>
+        <label>Số lệnh N (1-10):</label><br>
+        <input type="number" id="n-pipe" value="5" min="1" max="10" style="max-width: 100px; font-size: 1rem; padding: 6px;">
+      </div>
+      <button class="btn mt-1" onclick="drawPipeN()">Vẽ sơ đồ pipeline!</button>
+    </div>
     <div id="pipe5-result" class="mt-2"></div>
   </div>
 
   <!-- Tab 3 -->
   <div class="tab-content">
-    <p>Xét data hazard với 2 lệnh: <code>I1: ADD R1, R2, R3</code> &amp; <code>I2: SUB R4, R1, R5</code>. Chọn cách xử lý:</p>
-    <select id="hazard-mode" onchange="drawHazard()">
-      <option value="none">Không xử lý (sẽ sai kết quả)</option>
-      <option value="stall">Stall (chèn bong bóng)</option>
-      <option value="forward" selected>Forwarding (bypass)</option>
-    </select>
+    <p>Xét data hazard với 2 lệnh có phụ thuộc dữ liệu. Nhập lệnh (text mô tả) và chọn cách xử lý:</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+      <div>
+        <label>I1 (ghi thanh ghi):</label><br>
+        <input type="text" id="i1-text" value="ADD R1, R2, R3" style="font-family: var(--font-mono); max-width: 200px;">
+      </div>
+      <div>
+        <label>I2 (đọc thanh ghi):</label><br>
+        <input type="text" id="i2-text" value="SUB R4, R1, R5" style="font-family: var(--font-mono); max-width: 200px;">
+      </div>
+      <div>
+        <label>Cách xử lý:</label><br>
+        <select id="hazard-mode">
+          <option value="none">Không xử lý (sẽ sai kết quả)</option>
+          <option value="stall">Stall (chèn bong bóng)</option>
+          <option value="forward" selected>Forwarding (bypass)</option>
+        </select>
+      </div>
+      <button class="btn mt-1" onclick="drawHazard()">Phân tích hazard!</button>
+    </div>
     <div id="hazard-result" class="mt-2"></div>
   </div>
 </div>
@@ -376,14 +397,23 @@ function comparePipe() {
   document.getElementById('cmp-result').innerHTML = html;
 }
 
-function drawPipe5() {
+function drawPipeN() {
+  let N = parseInt(document.getElementById('n-pipe').value);
+  if (isNaN(N) || N < 1 || N > 10) {
+    document.getElementById('pipe5-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> N phải từ 1 đến 10.</div>';
+    return;
+  }
   const stages = ['IF', 'ID', 'EX', 'MEM', 'RS'];
-  let html = `<table class="pipe-table"><tr><th>Lệnh</th>`;
-  for (let c = 1; c <= 9; c++) html += `<th>C${c}</th>`;
+  const totalCycles = N + 4; // pipeline 5 giai đoạn: T = N + 4
+  const Tno = 5 * N;
+  const speedup = (Tno / totalCycles).toFixed(2);
+  let html = `<p><strong>Sơ đồ pipeline cho N = ${N} lệnh, 5 giai đoạn IF → ID → EX → MEM → RS:</strong></p>`;
+  html += `<table class="pipe-table"><tr><th>Lệnh</th>`;
+  for (let c = 1; c <= totalCycles; c++) html += `<th>C${c}</th>`;
   html += `</tr>`;
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= N; i++) {
     html += `<tr><td>I${i}</td>`;
-    for (let c = 1; c <= 9; c++) {
+    for (let c = 1; c <= totalCycles; c++) {
       const stageIdx = c - i;
       if (stageIdx >= 0 && stageIdx < 5) {
         html += `<td class="pipe-stage-${stages[stageIdx]}">${stages[stageIdx]}</td>`;
@@ -401,108 +431,202 @@ function drawPipe5() {
   html += `<li><span style="display:inline-block;width:14px;height:14px;background:#fff0f0;border:1px solid #c00000;"></span> MEM — Truy cập bộ nhớ</li>`;
   html += `<li><span style="display:inline-block;width:14px;height:14px;background:#f3e5f5;border:1px solid #8e24aa;"></span> RS — Lưu kết quả</li>`;
   html += `</ul>`;
-  html += `<p><strong>Quan sát:</strong> Ở mỗi chu kỳ (cột), có nhiều lệnh cùng chạy ở các giai đoạn khác nhau. Tổng cộng 9 chu kỳ cho 5 lệnh.</p>`;
+  html += `<p><strong>Quan sát:</strong> Ở mỗi chu kỳ (cột), có nhiều lệnh cùng chạy ở các giai đoạn khác nhau. Từ chu kỳ 5 trở đi (sau khi pipeline "lấp đầy"), mỗi chu kỳ có 1 lệnh hoàn thành (RS).</p>`;
 
-  // Use Bit.renderBits to show "completion pattern": 9 cycles, bit=1 when an instruction completes RS (cycles 5,6,7,8,9)
-  html += `<p class="mt-2"><strong>Chu kỳ hoàn thành (RS) — mỗi bit 1 chu kỳ (C1→C9):</strong></p>`;
-  const completionPattern = '000011111'; // C1..C9, bits 5-9 = 1 (instructions complete)
+  html += `<p class="mt-2"><strong>Bảng tổng kết:</strong></p>`;
+  html += `<table><tr><th>Đại lượng</th><th>Công thức</th><th>Giá trị</th></tr>`;
+  html += `<tr><td>T_không (không pipeline)</td><td>5 × N = 5 × ${N}</td><td><strong>${Tno}</strong> chu kỳ</td></tr>`;
+  html += `<tr><td>T_pipeline (có pipeline)</td><td>N + 4 = ${N} + 4</td><td><strong>${totalCycles}</strong> chu kỳ</td></tr>`;
+  html += `<tr><td>Speedup</td><td>${Tno} / ${totalCycles}</td><td><strong>${speedup}×</strong></td></tr>`;
+  html += `</table>`;
+
+  // Completion pattern: from C5 onwards (after fill), 1 instruction completes per cycle
+  html += `<p class="mt-2"><strong>Chu kỳ hoàn thành (RS) — mỗi bit 1 chu kỳ (C1→C${totalCycles}):</strong></p>`;
+  let completionPattern = '';
+  for (let c = 1; c <= totalCycles; c++) {
+    completionPattern += (c >= 5 && c <= 4 + N) ? '1' : '0';
+  }
+  const highlightIdx = [];
+  for (let c = 5; c <= 4 + N; c++) highlightIdx.push(totalCycles - c);
   const tempWrap = document.createElement('div');
-  const bitRowEl = Bit.renderBits(completionPattern, { highlight: [4,5,6,7,8], labels: false });
+  const bitRowEl = Bit.renderBits(completionPattern, { highlight: highlightIdx, labels: false });
   tempWrap.appendChild(bitRowEl);
   html += tempWrap.innerHTML;
-  html += `<p style="font-size: 0.85rem; color: var(--gray-500);">5 bit 1 ở cuối (C5–C9) = 5 lệnh hoàn thành liên tiếp mỗi chu kỳ, sau khi pipeline đã "lấp đầy" 4 chu kỳ đầu.</p>`;
+  html += `<p style="font-size: 0.85rem; color: var(--gray-500);">${N} bit 1 ở vị trí C5→C${4+N} = ${N} lệnh hoàn thành liên tiếp mỗi chu kỳ, sau khi pipeline đã "lấp đầy" 4 chu kỳ đầu.</p>`;
 
-  html += `<div class="result-box"><span class="result-label">Kết quả:</span>5 lệnh + pipeline 5 giai đoạn = 5 + 4 = 9 chu kỳ.</div>`;
+  html += `<div class="result-box"><span class="result-label">Kết quả:</span>${N} lệnh + pipeline 5 giai đoạn = ${totalCycles} chu kỳ (thay vì ${Tno} nếu không pipeline). Speedup = ${speedup}×.</div>`;
   document.getElementById('pipe5-result').innerHTML = html;
 }
 
 function drawHazard() {
+  const i1 = (document.getElementById('i1-text').value || 'ADD R1, R2, R3').trim();
+  const i2 = (document.getElementById('i2-text').value || 'SUB R4, R1, R5').trim();
   const mode = document.getElementById('hazard-mode').value;
-  const stages = ['IF', 'ID', 'EX', 'MEM', 'RS'];
-  let html = `<p><strong>2 lệnh:</strong> I1: ADD R1, R2, R3 (ghi R1) | I2: SUB R4, R1, R5 (đọc R1)</p>`;
+  let html = `<p><strong>2 lệnh:</strong> I1: <code>${i1}</code> (ghi kết quả vào thanh ghi đích) | I2: <code>${i2}</code> (đọc thanh ghi nguồn từ I1) → phụ thuộc dữ liệu kiểu <strong>RAW (Read After Write)</strong>.</p>`;
+  html += `<p><strong>Nature of hazard:</strong> I2.EX ở chu kỳ C4 cần giá trị thanh ghi, nhưng I1 chỉ ghi xong ở I1.RS (chu kỳ C5). Nếu không xử lý, I2 sẽ đọc giá trị cũ → kết quả sai.</p>`;
   if (mode === 'none') {
-    html += `<p><strong>Không xử lý hazard</strong> — I2.EX ở C4 cần R1, nhưng R1 chỉ có ở C5 (sau I1.RS) → kết quả SAI.</p>`;
+    html += `<p><strong>Không xử lý hazard</strong> — I2.EX ở C4 cần thanh ghi, nhưng thanh ghi chỉ có ở C5 (sau I1.RS) → kết quả SAI.</p>`;
     html += `<table class="pipe-table"><tr><th>Lệnh</th><th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>C5</th></tr>`;
-    html += `<tr><td>I1</td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-EX">EX</td><td class="pipe-stage-MEM">MEM</td><td class="pipe-stage-RS">RS ← ghi R1</td></tr>`;
-    html += `<tr><td>I2</td><td></td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-stall">EX (R1 cũ!)</td><td class="pipe-stage-MEM">MEM</td></tr>`;
+    html += `<tr><td>I1</td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-EX">EX</td><td class="pipe-stage-MEM">MEM</td><td class="pipe-stage-RS">RS ← ghi thanh ghi</td></tr>`;
+    html += `<tr><td>I2</td><td></td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-stall">EX (giá trị cũ!)</td><td class="pipe-stage-MEM">MEM</td></tr>`;
     html += `</table>`;
-    html += `<div class="result-box error"><span class="result-label">LỖI:</span>I2 đọc R1 cũ (giá trị chưa cập nhật) → kết quả sai!</div>`;
+    html += `<p><strong>Số chu kỳ:</strong> 5 chu kỳ (không stall), nhưng kết quả <strong>SAI</strong>.</p>`;
+    html += `<div class="result-box error"><span class="result-label">LỖI:</span>I2 đọc giá trị cũ chưa được cập nhật → kết quả sai! Phải có giải pháp xử lý hazard.</div>`;
   } else if (mode === 'stall') {
     html += `<p><strong>Stall (chèn 2 bong bóng)</strong> — I2 phải đứng chờ ở ID thêm 2 chu kỳ cho đến khi I1.RS hoàn tất ở C5.</p>`;
     html += `<table class="pipe-table"><tr><th>Lệnh</th><th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>C5</th><th>C6</th><th>C7</th></tr>`;
-    html += `<tr><td>I1</td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-EX">EX</td><td class="pipe-stage-MEM">MEM</td><td class="pipe-stage-RS">RS ← ghi R1</td><td></td><td></td></tr>`;
-    html += `<tr><td>I2</td><td></td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-bubble">bong bóng</td><td class="pipe-stage-bubble">bong bóng</td><td class="pipe-stage-EX">EX (đọc R1 mới)</td><td class="pipe-stage-MEM">MEM</td></tr>`;
+    html += `<tr><td>I1</td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-EX">EX</td><td class="pipe-stage-MEM">MEM</td><td class="pipe-stage-RS">RS ← ghi thanh ghi</td><td></td><td></td></tr>`;
+    html += `<tr><td>I2</td><td></td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-bubble">bong bóng</td><td class="pipe-stage-bubble">bong bóng</td><td class="pipe-stage-EX">EX (đọc giá trị mới)</td><td class="pipe-stage-MEM">MEM</td></tr>`;
     html += `</table>`;
-    html += `<p>Tổng cộng mất <strong>2 chu kỳ stall</strong>. Tốc độ giảm.</p>`;
-    html += `<div class="result-box"><span class="result-label">Kết quả:</span>Stall 2 chu kỳ — kết quả đúng nhưng giảm tốc độ.</div>`;
+    html += `<p><strong>Số chu kỳ:</strong> 7 chu kỳ (5 + 2 stall). Kết quả <strong>ĐÚNG</strong> nhưng giảm tốc độ.</p>`;
+    html += `<div class="result-box"><span class="result-label">Kết quả:</span>Stall 2 chu kỳ — kết quả đúng nhưng giảm tốc độ. Pipeline phải "đứng chờ" 2 chu kỳ.</div>`;
   } else { // forward
     html += `<p><strong>Forwarding (Bypass)</strong> — Kết quả ALU của I1.EX (cuối C3) được forward trực tiếp tới đầu vào ALU của I2.EX (đầu C4). Không cần stall.</p>`;
     html += `<table class="pipe-table"><tr><th>Lệnh</th><th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>C5</th></tr>`;
-    html += `<tr><td>I1</td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-EX">EX ← tính xong R1 ở cuối chu kỳ</td><td class="pipe-stage-MEM">MEM</td><td class="pipe-stage-RS">RS</td></tr>`;
-    html += `<tr><td>I2</td><td></td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-forward">EX (nhận R1 forward)</td><td class="pipe-stage-MEM">MEM</td></tr>`;
+    html += `<tr><td>I1</td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-EX">EX ← tính xong ở cuối chu kỳ</td><td class="pipe-stage-MEM">MEM</td><td class="pipe-stage-RS">RS</td></tr>`;
+    html += `<tr><td>I2</td><td></td><td class="pipe-stage-IF">IF</td><td class="pipe-stage-ID">ID</td><td class="pipe-stage-forward">EX (nhận giá trị forward)</td><td class="pipe-stage-MEM">MEM</td></tr>`;
     html += `</table>`;
     html += `<p><strong>Đường forward:</strong> từ đầu ra ALU của I1 (cuối C3) → đầu vào ALU của I2 (đầu C4). Pipeline không bị stall.</p>`;
+    html += `<p><strong>Số chu kỳ:</strong> 5 chu kỳ (không stall). Kết quả <strong>ĐÚNG</strong>, tốc độ tối đa.</p>`;
     html += `<div class="result-box"><span class="result-label">Kết quả:</span>Forwarding — kết quả đúng, không stall, giữ nguyên tốc độ pipeline.</div>`;
   }
+  // So sánh số chu kỳ giữa 3 cách
+  html += `<p class="mt-2"><strong>So sánh số chu kỳ giữa các cách xử lý:</strong></p>`;
+  html += `<table><tr><th>Cách xử lý</th><th>Số chu kỳ</th><th>Kết quả</th><th>Đánh giá</th></tr>`;
+  html += `<tr><td>Không xử lý</td><td>5</td><td style="color:var(--accent);font-weight:bold;">SAI</td><td>Không chấp nhận được</td></tr>`;
+  html += `<tr><td>Stall (2 bong bóng)</td><td>7</td><td style="color:var(--success);font-weight:bold;">ĐÚNG</td><td>Chậm hơn 2 chu kỳ</td></tr>`;
+  html += `<tr><td>Forwarding</td><td>5</td><td style="color:var(--success);font-weight:bold;">ĐÚNG</td><td>Tối ưu — không stall</td></tr>`;
+  html += `</table>`;
+  html += `<div class="result-box"><span class="result-label">Tổng kết:</span>Forwarding là giải pháp tốt nhất cho RAW hazard — kết quả đúng và không tốn chu kỳ stall.</div>`;
   document.getElementById('hazard-result').innerHTML = html;
 }
-// Initial render
-window.addEventListener('DOMContentLoaded', () => { drawHazard(); });
 </script>
 
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra. Mỗi đáp án có công thức, cách áp dụng, tính từng bước và kiểm tra ngược lại.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Tính số chu kỳ và speedup khi chạy <strong>10 lệnh</strong> qua pipeline 5 giai đoạn.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-13-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-13-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Pipeline 5 giai đoạn: T_không = 5 × N; T_pipeline = N + (k − 1) = N + 4 (k = 5); Speedup = T_không / T_pipeline = 5N / (N + 4).</p>
+    <p><strong>💡 Cách áp dụng:</strong> Thay N = 10 vào 2 công thức tính T_không và T_pipeline. Sau đó chia T_không cho T_pipeline ra speedup. Số 4 trong T_pipeline là "thời gian lấp đầy" = số giai đoạn − 1.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1: T_không (không pipeline)
+  = 5 × N = 5 × 10 = 50 chu kỳ
+  (Mỗi lệnh đi tuần tự qua 5 giai đoạn: IF→ID→EX→MEM→RS)
 
-<script>
-const exercises = [
-  {
-    question: "Tính số chu kỳ và speedup khi chạy <strong>10 lệnh</strong> qua pipeline 5 giai đoạn.",
-    answer: `T_không = 5 × 10 = 50 chu kỳ<br>
-    T_pipeline = N + 4 = 10 + 4 = 14 chu kỳ<br>
-    Speedup = 50 / 14 ≈ <strong>3.57</strong>`
-  },
-  {
-    question: "Một CPU có pipeline 6 giai đoạn (thay vì 5). Công thức tính T_pipeline và speedup (khi N lệnh) là gì?",
-    answer: `Pipeline k giai đoạn: T_pipeline = N + (k − 1) = N + 5<br>
-    T_không = k × N = 6N<br>
-    Speedup = 6N / (N + 5)<br>
-    Khi N → ∞, speedup → <strong>6</strong> (bằng số giai đoạn).`
-  },
-  {
-    question: "Cho 2 lệnh: <code>I1: MUL R1, R2, R3</code> (nhân R2×R3 → R1), <code>I2: ADD R4, R1, R5</code>. Mô tả data hazard và cách giải bằng forwarding.",
-    answer: `<strong>Hazard:</strong> RAW — I2 đọc R1 (ở I2.EX) nhưng R1 chưa được I1 ghi xong.<br>
-    <strong>Không forward:</strong> I1.RS ở C5 ghi R1, I2.EX ở C4 cần R1 → stall 2 chu kỳ.<br>
-    <strong>Có forward:</strong> Kết quả ALU của I1.EX (cuối C3) forward tới I2.EX (đầu C4) → không stall. (Lưu ý: nếu MUL cần nhiều chu kỳ EX, có thể vẫn phải stall thêm — tùy CPU.)`
-  },
-  {
-    question: "Tại sao speedup của pipeline 5 giai đoạn <strong>không bao giờ đạt đúng 5 lần</strong> trong thực tế?",
-    answer: `Có 3 lý do:<br>
-    1. <strong>Overhead lấp đầy:</strong> 4 chu kỳ đầu chỉ có 1 lệnh chạy, không song song.<br>
-    2. <strong>Hazard:</strong> Structural, Data, Control hazard khiến pipeline phải stall.<br>
-    3. <strong>Branch misprediction:</strong> Khi đoán sai nhánh, phải flush các lệnh đã fetch sai → lãng phí chu kỳ.<br>
-    Trong lý thuyết không có hazard, speedup tiệm cận 5 khi N → ∞.`
-  }
-];
+Bước 2: T_pipeline (có pipeline)
+  = N + (k − 1) = 10 + (5 − 1) = 10 + 4 = 14 chu kỳ
+  (Lệnh đầu mất 5 chu kỳ để "lấp đầy"; 9 lệnh còn lại mỗi lệnh thêm 1 chu kỳ)
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+Bước 3: Speedup
+  = T_không / T_pipeline
+  = 50 / 14
+  ≈ 3.571...</div>
+    <p><strong>✓ Kết quả:</strong> T_không = 50 chu kỳ; T_pipeline = 14 chu kỳ; Speedup ≈ <strong>3.57×</strong></p>
+    <p><strong>🔍 Kiểm tra:</strong> Đảo ngược: 14 × 3.57 ≈ 50 ✓. So với ngưỡng lý tưởng (5× khi N → ∞): với N = 10, speedup = 3.57 &lt; 5 (vì còn 4 chu kỳ lấp đầy chưa "loãng" đủ). Khi N = 100: speedup = 500/104 ≈ 4.81 (tiệm cận 5) ✓.</p>
+  </div>
+</div>
+
+<!-- Bài 2 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Một CPU có pipeline 6 giai đoạn (thay vì 5). Công thức tính T_pipeline và speedup (khi N lệnh) là gì?</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-13-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-13-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Tổng quát cho pipeline k giai đoạn: T_không = k × N; T_pipeline = N + (k − 1); Speedup = k·N / (N + k − 1).</p>
+    <p><strong>💡 Cách áp dụng:</strong> Thay k = 6 vào công thức tổng quát. Overhead lấp đầy = k − 1 = 5 chu kỳ (không phải 4 như pipeline 5 giai đoạn).</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Pipeline k = 6 giai đoạn:
+
+T_không   = k × N     = 6N
+T_pipeline = N + (k − 1) = N + (6 − 1) = N + 5
+Speedup   = T_không / T_pipeline = 6N / (N + 5)
+
+Khi N → ∞:
+  lim  6N / (N + 5) = lim 6 / (1 + 5/N) = 6
+  N→∞                N→∞
+
+→ Speedup tiệm cận 6 (= số giai đoạn)</div>
+    <p><strong>✓ Kết quả:</strong> T_pipeline = N + 5; T_không = 6N; Speedup = 6N / (N + 5). Khi N → ∞, speedup → <strong>6</strong> (bằng đúng số giai đoạn).</p>
+    <p><strong>🔍 Kiểm tra:</strong> Với N = 10: T_không = 60, T_pipeline = 15, Speedup = 60/15 = 4 ✓ (4 &lt; 6, chưa tiệm cận). Với N = 100: 600/105 ≈ 5.71 ✓ (gần 6 hơn). Pipeline nhiều giai đoạn hơn có ngưỡng lý tưởng cao hơn nhưng cũng tốn nhiều chu kỳ lấp đầy hơn.</p>
+  </div>
+</div>
+
+<!-- Bài 3 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Cho 2 lệnh: <code>I1: MUL R1, R2, R3</code> (nhân R2×R3 → R1), <code>I2: ADD R4, R1, R5</code>. Mô tả data hazard và cách giải bằng forwarding.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-13-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-13-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Data hazard kiểu RAW (Read After Write) — lệnh sau đọc thanh ghi mà lệnh trước chưa ghi xong. Giải pháp: Forwarding (bypass) kết quả ALU từ cuối EX của lệnh trước tới đầu EX của lệnh sau.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Lệnh I1 ghi R1 ở giai đoạn RS (chu kỳ 5). Lệnh I2 cần R1 ở giai đoạn EX (chu kỳ 4). Vì I2.EX (C4) xảy ra TRƯỚC I1.RS (C5), I2 sẽ đọc giá trị cũ của R1 → sai. Forwarding nối đầu ra ALU của I1 (cuối C3) tới đầu vào ALU của I2 (đầu C4).</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Pipeline không xử lý hazard (SAI):
+        C1   C2   C3   C4   C5
+  I1:   IF   ID   EX   MEM  RS ← ghi R1
+  I2:        IF   ID   EX?  MEM      (cần R1 nhưng chưa có!)
+  → I2 đọc R1 cũ → kết quả SAI
+
+Pipeline có STALL (ĐÚNG nhưng chậm):
+        C1   C2   C3   C4   C5   C6   C7
+  I1:   IF   ID   EX   MEM  RS ← ghi R1
+  I2:        IF   ID   ---  ---  EX   MEM    (stall 2 chu kỳ)
+  → Thêm 2 chu kỳ bong bóng, tổng = 7 chu kỳ
+
+Pipeline có FORWARDING (ĐÚNG và nhanh):
+        C1   C2   C3         C4                C5
+  I1:   IF   ID   EX         MEM               RS
+                  ↑ kết quả R1 có ở cuối C3
+  I2:        IF   ID         EX (nhận R1 fw)   MEM
+                              ↑ nhận forward từ I1.EX
+  → Không stall, tổng = 5 chu kỳ</div>
+    <p><strong>✓ Kết quả:</strong> RAW hazard giữa I1 (ghi R1) và I2 (đọc R1). Giải pháp Forwarding: kết quả MUL của I1.EX cuối C3 → I2.EX đầu C4. Không cần stall, pipeline chạy 5 chu kỳ.</p>
+    <p><strong>🔍 Kiểm tra:</strong> So sánh 3 cách — không xử lý (5 chu kỳ, SAI), stall (7 chu kỳ, ĐÚNG), forwarding (5 chu kỳ, ĐÚNG). Forwarding tiết kiệm 2 chu kỳ so với stall ✓. <em>Lưu ý: Nếu MUL cần nhiều chu kỳ EX (thường 3-5 chu kỳ ở CPU thực), forwarding vẫn phải đợi MUL.EX xong → có thể vẫn phải stall thêm. Giáo trình đơn giản hóa MUL = 1 chu kỳ EX.</em></p>
+  </div>
+</div>
+
+<!-- Bài 4 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Tại sao speedup của pipeline 5 giai đoạn <strong>không bao giờ đạt đúng 5 lần</strong> trong thực tế?</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-13-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-13-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Speedup lý thuyết = 5N / (N + 4). Trong thực tế, T_pipeline thực tế &gt; N + 4 do hazard → speedup thực &lt; 5.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Phân tích 3 nguyên nhân khiến T_pipeline thực tế &gt; N + 4: (1) overhead lấp đầy, (2) hazard gây stall, (3) branch misprediction gây flush.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Lý do 1 — OVERHEAD LẤP ĐẦY (4 chu kỳ):
+  4 chu kỳ đầu chỉ có 1 lệnh chạy (lệnh I1 đi từ IF đến RS).
+  Các lệnh I2..IN chỉ bắt đầu chạy từ C2 trở đi.
+  → 4 chu kỳ "lãng phí" không song song.
+  Speedup = 5N / (N + 4) &lt; 5 với mọi N hữu hạn.
+
+Lý do 2 — HAZARD GÂY STALL:
+  - Structural hazard: 2 lệnh cần cùng tài nguyên → stall.
+  - Data hazard (RAW/WAR/WAW): lệnh sau cần kết quả lệnh trước
+    chưa sẵn sàng → stall 1-3 chu kỳ (nếu không có forwarding).
+  - Control hazard: lệnh rẽ nhánh chưa biết kết quả → stall
+    hoặc flush lệnh đã fetch sai.
+  → Mỗi stall làm T_pipeline tăng thêm, speedup giảm.
+
+Lý do 3 — BRANCH MISPREDICTION:
+  Khi CPU đoán sai nhánh rẽ, phải flush (xóa) các lệnh đã fetch
+  theo nhánh sai → mất số chu kỳ đã fetch (thường 3-4 chu kỳ).
+  Tỷ lệ misprediction ~5-20% tùy benchmark → giảm speedup rõ rệt.
+
+Lý do 4 — CACHE MISS:
+  Khi IF hoặc MEM bị cache miss, phải chờ RAM (10-100 chu kỳ)
+  → pipeline stall dài. Đây là lý do lớn nhất trong CPU thực.</div>
+    <p><strong>✓ Kết quả:</strong> Speedup thực tế &lt; 5 vì: (1) overhead lấp đầy 4 chu kỳ (giảm dần khi N lớn), (2) hazard (Structural, Data, Control) gây stall, (3) branch misprediction gây flush, (4) cache miss. Trong lý thuyết không hazard, speedup tiệm cận 5 khi N → ∞.</p>
+    <p><strong>🔍 Kiểm tra:</strong> Tính cụ thể: N = 5, có 1 data hazard phải stall 2 chu kỳ → T_pipeline = 5 + 4 + 2 = 11 (thay vì 9) → speedup = 25/11 ≈ 2.27 &lt; 2.78 (lý tưởng) ✓. N = 100, 10% branch misprediction mỗi lần flush 4 chu kỳ = 10 × 4 = 40 chu kỳ lãng phí → T_pipeline = 104 + 40 = 144 → speedup = 500/144 ≈ 3.47 &lt; 4.81 (lý tưởng) ✓.</p>
+  </div>
+</div>
+
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -645,6 +769,5 @@ I5:                 IF  ID  EX  MEM RS
   <a href="14-cache.html" class="btn">Bài 14: Cache + Hit Rate + PSU →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

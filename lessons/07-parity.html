@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -292,8 +293,21 @@ new StepReveal('step-demo', steps);
 
   <!-- Tab 3: Error simulation -->
   <div class="tab-content">
-    <p>Bảng ma trận 4×8 dưới đây. <strong>Click vào bất kỳ bit nào</strong> để đảo nó (mô phỏng lỗi truyền). VRC và LRC tương ứng sẽ sáng đỏ, và giao điểm chỉ ra vị trí lỗi.</p>
-    <button class="btn btn-ghost mt-1" onclick="resetErrorSim()">↺ Reset (không lỗi)</button>
+    <p>Bảng ma trận <strong>4 byte × 8 bit = 32 bit</strong> dưới đây. <strong>Nhập 4 byte hexa</strong> (mỗi byte 2 chữ số) để khởi tạo ma trận, chọn parity (chẵn/lẻ), rồi <strong>click vào bất kỳ bit nào</strong> để đảo nó (mô phỏng lỗi truyền). VRC và LRC tương ứng sẽ sáng đỏ, và giao điểm chỉ ra vị trí lỗi.</p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+      <label style="font-weight:600;">4 byte hexa:</label>
+      <input type="text" id="sim-bytes-input" value="47, 9B, C2, 3D" pattern="[0-9A-Fa-f]{2}([, ]+[0-9A-Fa-f]{2}){3}" style="font-family: var(--font-mono); font-size: 1rem; padding: 8px; width: 220px;" placeholder="vd: 47, 9B, C2, 3D">
+      <label>Parity:
+        <select id="sim-parity-type" style="max-width: 120px;">
+          <option value="even">Chẵn (Even)</option>
+          <option value="odd">Lẻ (Odd)</option>
+        </select>
+      </label>
+      <button class="btn" onclick="loadSimBytes()">🔄 Nạp ma trận</button>
+      <button class="btn btn-ghost" onclick="resetErrorSim()">↺ Reset (không lỗi)</button>
+      <button class="btn btn-warn" onclick="injectRandomError()">🎲 Bơm lỗi ngẫu nhiên</button>
+    </div>
+    <div id="sim-status" class="mt-1" style="font-size: 0.9rem; color: var(--text-secondary);"></div>
     <div id="error-sim" class="mt-2"></div>
     <div id="error-info"></div>
   </div>
@@ -367,24 +381,59 @@ function calcMatrix() {
 }
 
 // === Tab 3: Error simulation ===
-const simBytes = ['47', '9B', 'C2', '3D'];  // Fixed for simulation
+let simBytes = ['47', '9B', 'C2', '3D'];  // Can be reloaded from input
 let simMatrix = simBytes.map(b => parseInt(b, 16).toString(2).padStart(8, '0').split(''));
 let simErrorMatrix = simMatrix.map(row => [...row]);  // Copy for error state
 
+function getSimParityEven() {
+  const sel = document.getElementById('sim-parity-type');
+  return sel ? sel.value === 'even' : true;
+}
+
 function calcSimVRC(matrix) {
+  const isEven = getSimParityEven();
   return matrix.map(row => {
     const cnt = row.filter(b => b === '1').length;
-    return cnt % 2 === 0 ? '0' : '1';  // Even parity
+    if (isEven) return cnt % 2 === 0 ? '0' : '1';   // even parity: need even total → P=0 if cnt even, P=1 if cnt odd
+    return cnt % 2 === 0 ? '1' : '0';                // odd parity: need odd total → P=1 if cnt even, P=0 if cnt odd
   });
 }
 function calcSimLRC(matrix) {
+  const isEven = getSimParityEven();
   const lrc = [];
   for (let col = 0; col < 8; col++) {
     let cnt = 0;
     for (let row = 0; row < 4; row++) if (matrix[row][col] === '1') cnt++;
-    lrc.push(cnt % 2 === 0 ? '0' : '1');
+    if (isEven) lrc.push(cnt % 2 === 0 ? '0' : '1');
+    else lrc.push(cnt % 2 === 0 ? '1' : '0');
   }
   return lrc;
+}
+
+function loadSimBytes() {
+  const input = document.getElementById('sim-bytes-input').value.trim();
+  const bytes = input.split(/[, ]+/).map(s => s.trim().toUpperCase()).filter(s => s);
+  const statusEl = document.getElementById('sim-status');
+  if (bytes.length !== 4 || !bytes.every(b => /^[0-9A-F]{2}$/.test(b))) {
+    statusEl.innerHTML = '<span style="color: var(--danger);">⚠️ Nhập đúng 4 byte, mỗi byte 2 chữ số hex (vd: 47, 9B, C2, 3D).</span>';
+    return;
+  }
+  simBytes = bytes;
+  simMatrix = simBytes.map(b => parseInt(b, 16).toString(2).padStart(8, '0').split(''));
+  simErrorMatrix = simMatrix.map(row => [...row]);
+  statusEl.innerHTML = `<span style="color: var(--success);">✓ Đã nạp ma trận từ ${bytes.join(', ')}. Bây giờ click vào bit để mô phỏng lỗi.</span>`;
+  renderErrorSim();
+}
+
+function injectRandomError() {
+  // Pick a random cell to flip
+  if (!simErrorMatrix.length) return;
+  const r = Math.floor(Math.random() * 4);
+  const c = Math.floor(Math.random() * 8);
+  simErrorMatrix[r][c] = simErrorMatrix[r][c] === '1' ? '0' : '1';
+  const statusEl = document.getElementById('sim-status');
+  statusEl.innerHTML = `<span style="color: var(--warning);">🎲 Đã bơm lỗi vào (Byte ${r+1}, b${8-c}) — xem ma trận highlight giao điểm.</span>`;
+  renderErrorSim();
 }
 
 function renderErrorSim() {
@@ -392,11 +441,12 @@ function renderErrorSim() {
   const origLRC = calcSimLRC(simMatrix);
   const newVRC = calcSimVRC(simErrorMatrix);
   const newLRC = calcSimLRC(simErrorMatrix);
+  const parityLabel = getSimParityEven() ? 'chẵn' : 'lẻ';
 
-  let html = `<table style="font-family: var(--font-mono); text-align: center;">`;
+  let html = `<table style="font-family: var(--font-mono); text-align: center; margin: 10px auto;">`;
   html += `<tr><th></th><th>b7</th><th>b6</th><th>b5</th><th>b4</th><th>b3</th><th>b2</th><th>b1</th><th>b0</th><th>VRC</th></tr>`;
   for (let r = 0; r < 4; r++) {
-    html += `<tr><td><strong>Byte ${r+1}</strong><br><small>0x${simBytes[r]}</small></td>`;
+    html += `<tr><td style="padding: 0 8px;"><strong>Byte ${r+1}</strong><br><small>0x${simBytes[r]}</small></td>`;
     for (let c = 0; c < 8; c++) {
       const origBit = simMatrix[r][c];
       const currBit = simErrorMatrix[r][c];
@@ -404,15 +454,16 @@ function renderErrorSim() {
       html += `<td><button class="bit ${currBit==='1'?'one':'zero'}${isError ? ' error' : ''}" onclick="toggleBit(${r}, ${c})" style="cursor:pointer; width:42px; height:42px;">${currBit}</button></td>`;
     }
     const vrcDiff = origVRC[r] !== newVRC[r];
-    html += `<td><div class="bit ${newVRC[r]==='1'?'one':'zero'}${vrcDiff ? ' error' : ''}" style="width:42px; height:42px;">${newVRC[r]}</div></td>`;
+    html += `<td><div class="bit ${newVRC[r]==='1'?'one':'zero'}${vrcDiff ? ' error' : ''}" style="width:42px; height:42px; display:flex; align-items:center; justify-content:center;">${newVRC[r]}</div></td>`;
     html += `</tr>`;
   }
-  html += `<tr><td><strong>LRC</strong></td>`;
+  html += `<tr><td style="padding: 0 8px;"><strong>LRC</strong><br><small>parity ${parityLabel}</small></td>`;
   for (let c = 0; c < 8; c++) {
     const lrcDiff = origLRC[c] !== newLRC[c];
-    html += `<td><div class="bit ${newLRC[c]==='1'?'one':'zero'}${lrcDiff ? ' error' : ''}" style="width:42px; height:42px;">${newLRC[c]}</div></td>`;
+    html += `<td><div class="bit ${newLRC[c]==='1'?'one':'zero'}${lrcDiff ? ' error' : ''}" style="width:42px; height:42px; display:flex; align-items:center; justify-content:center;">${newLRC[c]}</div></td>`;
   }
   html += `<td></td></tr></table>`;
+  html += `<p style="text-align:center; font-size: 0.88rem; color: var(--text-secondary);">Click vào bit bất kỳ để đảo (mô phỏng lỗi). Bit/kết quả sai sẽ highlight đỏ. Parity hiện tại: <strong>${parityLabel}</strong>.</p>`;
   document.getElementById('error-sim').innerHTML = html;
 
   // Find errors
@@ -423,11 +474,11 @@ function renderErrorSim() {
 
   let info = '';
   if (errorRows.length === 0 && errorCols.length === 0) {
-    info = `<div class="result-box"><span class="result-label">Trạng thái:</span>Không có lỗi. Tất cả VRC và LRC đều khớp với giá trị gốc.</div>`;
+    info = `<div class="result-box"><span class="result-label">Trạng thái:</span>Không có lỗi. Tất cả VRC và LRC đều khớp với giá trị gốc (parity ${parityLabel}).</div>`;
   } else if (errorRows.length === 1 && errorCols.length === 1) {
-    info = `<div class="result-box"><span class="result-label">Phát hiện &amp; định vị lỗi!</span>VRC báo hàng Byte ${errorRows[0]} sai. LRC báo cột b${errorCols[0]} sai. → Lỗi tại (Byte ${errorRows[0]}, b${errorCols[0]}). Có thể sửa bằng cách đảo bit này.</div>`;
+    info = `<div class="result-box"><span class="result-label">✓ Phát hiện &amp; định vị lỗi!</span>VRC báo hàng <strong>Byte ${errorRows[0]}</strong> sai. LRC báo cột <strong>b${errorCols[0]}</strong> sai. → Lỗi tại <strong>(Byte ${errorRows[0]}, b${errorCols[0]})</strong>. Có thể sửa bằng cách đảo bit này.</div>`;
   } else {
-    info = `<div class="result-box error"><span class="result-label">Phát hiện lỗi nhưng không định vị được!</span>VRC sai ở ${errorRows.length} hàng, LRC sai ở ${errorCols.length} cột. Nhiều khả năng có ≥ 2 bit bị đảo ở hàng/cột khác nhau → VRC+LRC không đủ sức định vị.</div>`;
+    info = `<div class="result-box error"><span class="result-label">⚠️ Phát hiện lỗi nhưng không định vị được!</span>VRC sai ở ${errorRows.length} hàng (Bytes: ${errorRows.join(', ')}), LRC sai ở ${errorCols.length} cột (b${errorCols.join(', b')}). Nhiều khả năng có ≥ 2 bit bị đảo ở hàng/cột khác nhau → VRC+LRC không đủ sức định vị.</div>`;
   }
   document.getElementById('error-info').innerHTML = info;
 }
@@ -439,6 +490,8 @@ function toggleBit(r, c) {
 
 function resetErrorSim() {
   simErrorMatrix = simMatrix.map(row => [...row]);
+  const statusEl = document.getElementById('sim-status');
+  if (statusEl) statusEl.innerHTML = '<span style="color: var(--text-secondary);">↺ Đã reset: tất cả bit về giá trị gốc (không lỗi).</span>';
   renderErrorSim();
 }
 
@@ -449,85 +502,168 @@ renderErrorSim();
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra. Mỗi đáp án có <strong>công thức áp dụng</strong>, <strong>cách giải</strong>, <strong>tính toán từng bước</strong>, <strong>kết quả</strong> và <strong>phần kiểm tra</strong>.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1: parity chẵn cho 1111011 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Truyền byte <strong>1111011</strong> (7 bit) với <strong>parity chẵn</strong>. Tìm parity bit P và chuỗi bit gửi đi.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-7-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-7-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> Parity chẵn: <code>P = (số bit 1) mod 2</code>. Tổng bit 1 (kể cả P) phải là CHẴN. Chuỗi gửi = <code>data + P</code>.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Đếm số bit 1 trong 7 bit dữ liệu. Vì đã chẵn → P = 0 (không cần thêm 1 nào). Ghép P vào cuối data.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Đếm số bit 1 trong 1111011:
+  1 1 1 1 0 1 1
+  Số bit 1 = 6  (chẵn)
 
-<script>
-const exercises = [
-  {
-    question: "Truyền byte <strong>1111011</strong> (7 bit) với parity chẵn. Tìm parity bit P và chuỗi bit gửi đi.",
-    answer: `Số bit 1 trong 1111011 = 6 (chẵn).<br>
-    Parity chẵn: cần tổng chẵn → P = 0 (vì 6 + 0 = 6, vẫn chẵn).<br>
-    → Gửi: <strong>11110110</strong> (8 bit, P = 0 ở cuối).<br>
-    <br>
-    <em>Kiểm tra: 6 + 0 = 6 bit 1, chẵn ✓</em>`
-  },
-  {
-    question: "Truyền byte <strong>1010101</strong> (7 bit) với parity lẻ. Tìm P và chuỗi gửi.",
-    answer: `Số bit 1 trong 1010101 = 4 (chẵn).<br>
-    Parity lẻ: cần tổng lẻ → P = 1 (vì 4 + 1 = 5, lẻ).<br>
-    → Gửi: <strong>10101011</strong> (P = 1 ở cuối).<br>
-    <br>
-    <em>Kiểm tra: 4 + 1 = 5 bit 1, lẻ ✓</em>`
-  },
-  {
-    question: "Cho khối 4 byte với parity chẵn: <strong>0x3A, 0x5C, 0x77, 0x1F</strong>. Tính VRC và LRC.",
-    answer: `Đổi sang nhị phân:<br>
-    0x3A = 00111010<br>
-    0x5C = 01011100<br>
-    0x77 = 01110111<br>
-    0x1F = 00011111<br>
-    <br>
-    VRC (parity chẵn cho mỗi hàng):<br>
-    Byte 1 (0x3A): 4 bit 1 (chẵn) → VRC = 0<br>
-    Byte 2 (0x5C): 4 bit 1 (chẵn) → VRC = 0<br>
-    Byte 3 (0x77): 6 bit 1 (chẵn) → VRC = 0<br>
-    Byte 4 (0x1F): 6 bit 1 (chẵn) → VRC = 0<br>
-    → VRC = <strong>0000</strong><br>
-    <br>
-    LRC (parity chẵn cho mỗi cột):<br>
-    b7: 0+0+0+0 = 0 (chẵn) → 0<br>
-    b6: 0+1+1+0 = 2 (chẵn) → 0<br>
-    b5: 1+0+1+0 = 2 (chẵn) → 0<br>
-    b4: 1+1+1+1 = 4 (chẵn) → 0<br>
-    b3: 1+1+0+1 = 3 (lẻ) → 1<br>
-    b2: 0+1+1+1 = 3 (lẻ) → 1<br>
-    b1: 1+0+1+1 = 3 (lẻ) → 1<br>
-    b0: 0+0+1+1 = 2 (chẵn) → 0<br>
-    → LRC = <strong>00001110₂ = 0x0E</strong>`
-  },
-  {
-    question: "Giải thích tại sao parity KHÔNG phát hiện được lỗi khi 2 bit cùng bị đảo trong 1 byte.",
-    answer: `Ví dụ: byte gốc 1001010 (3 bit 1, lẻ), parity chẵn → P = 1, gửi 10010101 (4 bit 1, chẵn).<br>
-    <br>
-    Giả sử 2 bit bị đảo cùng lúc: b0 (0→1) và b3 (1→0).<br>
-    Byte nhận: 10000111 (vẫn 4 bit 1, chẵn).<br>
-    <br>
-    → Parity nhận = 0 (vì 4 bit 1 chẵn) → khớp với parity gửi = 0.<br>
-    → Không phát hiện được lỗi mặc dù 2 bit đã bị đảo!<br>
-    <br>
-    <strong>Nguyên lý:</strong> Parity chỉ "đếm" chẵn/lẻ. Đảo 2 bit (1 bit 0→1 và 1 bit 1→0) làm tổng bit 1 không đổi → parity không phát hiện được.<br>
-    <br>
-    <em>Đó là lý do CRC và Hamming được phát triển: CRC phát hiện được lỗi nhiều bit, Hamming có thể sửa được lỗi 1 bit.</em>`
-  }
-];
+Bước 2 — Tính parity chẵn:
+  P = (số bit 1) mod 2 = 6 mod 2 = 0
+  → P = 0   (vì 6 đã chẵn, không cần thêm 1)
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem; line-height: 1.7;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+Bước 3 — Ghép chuỗi gửi:
+  Gửi = data + P = 1111011 + 0 = 11110110   (8 bit)</div>
+    <p><strong>✓ Kết quả:</strong> P = 0, chuỗi gửi = <strong>11110110</strong></p>
+    <p><strong>🔍 Kiểm tra:</strong></p>
+    <div class="code-block">Đếm lại số bit 1 trong chuỗi gửi 11110110:
+  1+1+1+1+0+1+1+0 = 6  (chẵn) ✓
+
+  Quy tắc: parity chẵn luôn cho tổng chẵn. Ở đầu nhận, đếm số bit 1:
+  - Nếu chẵn → không phát hiện lỗi
+  - Nếu lẻ → có lỗi (1 bit bị đảo)</div>
+  </div>
+</div>
+
+<!-- Bài 2: parity lẻ cho 1010101 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Truyền byte <strong>1010101</strong> (7 bit) với <strong>parity lẻ</strong>. Tìm P và chuỗi gửi.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-7-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-7-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> Parity lẻ: <code>P = 1 − (số bit 1) mod 2</code>, tức P = 1 nếu số bit 1 chẵn, P = 0 nếu số bit 1 lẻ. Tổng bit 1 (kể cả P) phải là LẺ.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Đếm số bit 1. Vì 4 (chẵn) → cần thêm 1 cho tổng lẻ → P = 1. Ghép P vào cuối data.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Đếm số bit 1 trong 1010101:
+  1 0 1 0 1 0 1
+  Số bit 1 = 4  (chẵn)
+
+Bước 2 — Tính parity lẻ:
+  Cần tổng bit 1 = lẻ
+  P = 1 − (4 mod 2) = 1 − 0 = 1
+  → P = 1   (thêm 1 để tổng = 5, lẻ)
+
+Bước 3 — Ghép chuỗi gửi:
+  Gửi = data + P = 1010101 + 1 = 10101011   (8 bit)</div>
+    <p><strong>✓ Kết quả:</strong> P = 1, chuỗi gửi = <strong>10101011</strong></p>
+    <p><strong>🔍 Kiểm tra:</strong></p>
+    <div class="code-block">Đếm lại số bit 1 trong chuỗi gửi 10101011:
+  1+0+1+0+1+0+1+1 = 5  (lẻ) ✓
+
+  So sánh parity chẵn vs lẻ cho cùng data 1010101:
+  - Parity chẵn: P = 0 → gửi 10101010 (4 bit 1, chẵn)
+  - Parity lẻ:   P = 1 → gửi 10101011 (5 bit 1, lẻ)
+  Hai parity cho 2 kết quả P khác nhau!</div>
+  </div>
+</div>
+
+<!-- Bài 3: VRC + LRC cho 4 byte -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Cho khối 4 byte với <strong>parity chẵn</strong>: <strong>0x3A, 0x5C, 0x77, 0x1F</strong>. Tính VRC và LRC.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-7-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-7-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> <code>VRC[hàng i] = (số bit 1 trong byte i) mod 2</code> (parity chẵn). <code>LRC[cột j] = (số bit 1 ở vị trí j của 4 byte) mod 2</code>. VRC đặt bên phải ma trận, LRC đặt ở hàng cuối.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Đổi mỗi byte hexa sang nhị phân 8 bit, xếp thành ma trận 4 hàng × 8 cột. Tính VRC theo hàng (4 bit), LRC theo cột (8 bit). Đổi LRC sang hexa.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 1 — Đổi 4 byte sang nhị phân 8 bit:
+  0x3A = 0011 1010
+  0x5C = 0101 1100
+  0x77 = 0111 0111
+  0x1F = 0001 1111
+
+Bước 2 — Xếp ma trận (hàng = byte, cột = vị trí bit):
+        b7 b6 b5 b4 b3 b2 b1 b0
+  Byte 1: 0  0  1  1  1  0  1  0   (0x3A)
+  Byte 2: 0  1  0  1  1  1  0  0   (0x5C)
+  Byte 3: 0  1  1  1  0  1  1  1   (0x77)
+  Byte 4: 0  0  0  1  1  1  1  1   (0x1F)
+
+Bước 3 — Tính VRC (parity chẵn cho mỗi hàng):
+  Byte 1 (0x3A): bit 1 ở b5,b4,b3,b1 → 4 bit 1 (chẵn) → VRC = 0
+  Byte 2 (0x5C): bit 1 ở b6,b4,b3,b2 → 4 bit 1 (chẵn) → VRC = 0
+  Byte 3 (0x77): bit 1 ở b6,b5,b4,b2,b1,b0 → 6 bit 1 (chẵn) → VRC = 0
+  Byte 4 (0x1F): bit 1 ở b4,b3,b2,b1,b0 → 5 bit 1 (lẻ) → VRC = 1
+  → VRC = 0001
+
+Bước 4 — Tính LRC (parity chẵn cho mỗi cột):
+  Cột b7: 0+0+0+0 = 0 (chẵn) → LRC[b7] = 0
+  Cột b6: 0+1+1+0 = 2 (chẵn) → LRC[b6] = 0
+  Cột b5: 1+0+1+0 = 2 (chẵn) → LRC[b5] = 0
+  Cột b4: 1+1+1+1 = 4 (chẵn) → LRC[b4] = 0
+  Cột b3: 1+1+0+1 = 3 (lẻ)   → LRC[b3] = 1
+  Cột b2: 0+1+1+1 = 3 (lẻ)   → LRC[b2] = 1
+  Cột b1: 1+0+1+1 = 3 (lẻ)   → LRC[b1] = 1
+  Cột b0: 0+0+1+1 = 2 (chẵn) → LRC[b0] = 0
+  → LRC = 00001110₂
+
+Bước 5 — Đổi LRC sang hexa:
+  0000 1110 = 0x0E</div>
+    <p><strong>✓ Kết quả:</strong> VRC = <strong>0001</strong>, LRC = <strong>0x0E</strong> (00001110₂)</p>
+    <p><strong>🔍 Kiểm tra (tính parity của chính LRC):</strong></p>
+    <div class="code-block">Số bit 1 trong LRC = 00001110 → 3 bit 1 (lẻ).
+  Nếu tính parity chẵn cho LRC: P = 1 (để tổng = 4, chẵn).
+  Đây là "corner parity" — đôi khi đề yêu cầu tính.
+
+  Toàn bộ khối truyền đi (4 byte + VRC + LRC):
+        b7 b6 b5 b4 b3 b2 b1 b0 | VRC
+  Byte 1: 0  0  1  1  1  0  1  0 |  0
+  Byte 2: 0  1  0  1  1  1  0  0 |  0
+  Byte 3: 0  1  1  1  0  1  1  1 |  0
+  Byte 4: 0  0  0  1  1  1  1  1 |  1
+  ─────────────────────────────────────
+  LRC:    0  0  0  0  1  1  1  0   (0x0E)</div>
+  </div>
+</div>
+
+<!-- Bài 4: parity không phát hiện 2 bit đảo -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Giải thích tại sao parity KHÔNG phát hiện được lỗi khi <strong>2 bit cùng bị đảo</strong> trong 1 byte.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-7-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-7-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> Parity chỉ kiểm tra tính chẵn/lẻ của <strong>tổng số bit 1</strong>. <code>P = (số bit 1) mod 2</code>. Nếu tổng bit 1 không đổi → parity không đổi → không phát hiện lỗi.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Đảo 1 bit 0→1 làm tổng tăng 1; đảo 1 bit 1→0 làm tổng giảm 1. Nếu đảo đồng thời 1 bit 0→1 và 1 bit 1→0 → tổng bit 1 không đổi → parity vẫn khớp → không phát hiện được lỗi.</p>
+    <p><strong>🧮 Tính toán từng bước (ví dụ minh họa):</strong></p>
+    <div class="code-block">Giả sử byte gốc: 1 0 0 1 0 1 0   (7 bit, 3 bit 1, lẻ)
+  Parity chẵn: P = 1 → gửi 1001010 1   (8 bit, 4 bit 1, chẵn)
+
+Bước 1 — Mô phỏng lỗi: 2 bit cùng bị đảo
+  Bit b0: 0 → 1   (tăng 1 bit 1)
+  Bit b3: 1 → 0   (giảm 1 bit 1)
+  Byte nhận: 1 0 0 0 0 1 1   (thay vì 1 0 0 1 0 1 0)
+  → Chuỗi nhận (kèm parity): 1 0 0 0 0 1 1 1
+
+Bước 2 — Đếm số bit 1 ở đầu nhận:
+  1+0+0+0+0+1+1+1 = 4  (vẫn chẵn!)
+
+Bước 3 — So sánh parity:
+  Parity gửi = 1, Parity nhận tính lại = 4 mod 2 = 0
+  → parity bit nhận (= 1) == parity bit gửi (= 1) → KHỚP
+  → Không phát hiện được lỗi!
+
+  Mặc dù 2 bit đã bị đảo, tổng bit 1 không đổi (4 = 4) → parity vẫn chẵn.</div>
+    <p><strong>✓ Kết quả:</strong> Parity <strong>không phát hiện được</strong> lỗi 2 bit (1 bit 0→1 và 1 bit 1→0) vì tổng bit 1 không đổi → parity vẫn khớp.</p>
+    <p><strong>🔍 Kiểm tra (vì sao CRC và Hamming được phát triển):</strong></p>
+    <div class="code-block">Đây là nhược điểm cơ bản của parity đơn:
+  - Phát hiện được: 1 bit sai (lệch chẵn/lẻ)
+  - Không phát hiện: 2 bit cùng sai (tổng không đổi)
+
+  Giải pháp nâng cấp:
+  - VRC + LRC: tổ hợp 2D, định vị được 1 bit lỗi (nhưng vẫn không thấy 2 bit cùng hàng+cột)
+  - CRC: phát hiện được lỗi nhiều bit (kèm khả năng sửa một số pattern)
+  - Hamming: sửa được 1 bit lỗi, phát hiện 2 bit lỗi</div>
+  </div>
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -695,6 +831,5 @@ Sửa: 0 → 1 → khôi phục 0x9B ✓
   <a href="08-crc.html" class="btn">Bài 8: CRC →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

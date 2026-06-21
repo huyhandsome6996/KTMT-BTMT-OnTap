@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -295,7 +296,18 @@ new StepReveal('step-demo', steps);
 
   <!-- Tab 3 -->
   <div class="tab-content">
-    <h4>📋 Bảng tra ý nghĩa 9 cờ FR</h4>
+    <h4>📋 Tra cờ từ giá trị FR hexa</h4>
+    <p>Nhập giá trị FR (4 chữ số hexa) để tra nhanh từng cờ (bảng dưới là bảng tham chiếu cố định):</p>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+      <div>
+        <label>FR (hex, 4 chữ số):</label><br>
+        <input type="text" id="fr-lookup" value="0A86" pattern="[0-9A-Fa-f]{1,4}" maxlength="4" style="font-family: var(--font-mono); text-transform: uppercase; max-width: 120px;">
+      </div>
+      <button class="btn mt-1" onclick="lookupFlags()">Tra cờ!</button>
+    </div>
+    <div id="lookup-result" class="mt-2"></div>
+
+    <h4 class="mt-2">📋 Bảng tra ý nghĩa 9 cờ FR (tham chiếu)</h4>
     <table>
       <tr><th>Cờ</th><th>Tên</th><th>Bit</th><th>=1 nghĩa là</th><th>=0 nghĩa là</th></tr>
       <tr><td>CF</td><td>Carry</td><td>0</td><td>Có nhớ/mượn ra MSB</td><td>Không tràn không dấu</td></tr>
@@ -463,82 +475,174 @@ function showFR() {
   html += `</ul>`;
   document.getElementById('fr-result').innerHTML = html;
 }
+
+function lookupFlags() {
+  const frStr = document.getElementById('fr-lookup').value.trim().toUpperCase();
+  if (!/^[0-9A-F]{1,4}$/.test(frStr)) {
+    document.getElementById('lookup-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> FR phải là 1-4 chữ số hexa.</div>';
+    return;
+  }
+  const fr = parseInt(frStr, 16);
+  const frPadded = frStr.padStart(4, '0');
+  const frBin = fr.toString(2).padStart(16, '0');
+  const flagDefs = [
+    { name: 'CF', bit: 0, type: 'Trạng thái', one: 'Có nhớ/mượn ra MSB (tràn không dấu)', zero: 'Không có nhớ/mượn ra MSB' },
+    { name: 'PF', bit: 2, type: 'Trạng thái', one: 'Byte thấp có số bit 1 chẵn', zero: 'Byte thấp có số bit 1 lẻ' },
+    { name: 'AF', bit: 4, type: 'Trạng thái', one: 'Có nhớ/mượn từ nibble thấp → cao (bit 3→4)', zero: 'Không có nhớ nibble thấp → cao' },
+    { name: 'ZF', bit: 6, type: 'Trạng thái', one: 'Kết quả phép toán = 0', zero: 'Kết quả phép toán ≠ 0' },
+    { name: 'SF', bit: 7, type: 'Trạng thái', one: 'Kết quả âm (MSB của kết quả = 1)', zero: 'Kết quả dương (MSB = 0)' },
+    { name: 'TF', bit: 8, type: 'Điều khiển', one: 'CPU đang ở chế độ single-step (debug)', zero: 'CPU chạy bình thường' },
+    { name: 'IF', bit: 9, type: 'Điều khiển', one: 'Cho phép nhận ngắt INTR (interrupt enable)', zero: 'Khóa ngắt INTR' },
+    { name: 'DF', bit: 10, type: 'Điều khiển', one: 'Lệnh chuỗi chạy lùi (DI/SI giảm)', zero: 'Lệnh chuỗi chạy tiến (DI/SI tăng)' },
+    { name: 'OF', bit: 11, type: 'Trạng thái', one: 'Tràn có dấu (2 số cùng dấu ra khác dấu)', zero: 'Không tràn có dấu' }
+  ];
+  let html = `<p><strong>FR = ${frPadded}H = ${frBin}</strong> (16 bit, chỉ 9 bit dùng cho cờ)</p>`;
+  html += `<table><tr><th>Cờ</th><th>Bit</th><th>Loại</th><th>Giá trị</th><th>Ý nghĩa hiện tại</th></tr>`;
+  let setCount = 0;
+  flagDefs.forEach(f => {
+    const val = (fr >> f.bit) & 1;
+    if (val === 1) setCount++;
+    const meaning = val === 1 ? f.one : f.zero;
+    const color = val === 1 ? 'var(--success)' : 'var(--gray-500)';
+    html += `<tr>
+      <td><strong>${f.name}</strong></td>
+      <td>${f.bit}</td>
+      <td>${f.type}</td>
+      <td><strong style="color:${color};">${val}</strong></td>
+      <td>${meaning}</td>
+    </tr>`;
+  });
+  html += `</table>`;
+  const setNames = flagDefs.filter(f => ((fr >> f.bit) & 1) === 1).map(f => f.name);
+  html += `<div class="result-box"><span class="result-label">Tổng kết:</span>FR = ${frPadded}H có <strong>${setCount}/9 cờ được set (=1)</strong>${setCount > 0 ? ': ' + setNames.join(', ') : ''}.${setCount < 9 ? ' Các cờ còn lại = 0.' : ''}</div>`;
+  document.getElementById('lookup-result').innerHTML = html;
+}
 </script>
 
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+<p>Hãy tự tính trước, sau đó bấm "Xem đáp án" để kiểm tra. Mỗi đáp án có công thức, cách áp dụng, tính từng bước và kiểm tra ngược lại.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Tính các cờ CF, PF, AF, ZF, SF, OF sau phép <strong>ADD AX, BX</strong> với <strong>AX = 1234H</strong>, <strong>BX = 5678H</strong>.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-12-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-12-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Phép ADD 16-bit; tính 6 cờ trạng thái CF, PF, AF, ZF, SF, OF theo công thức chuẩn của 8086.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Cộng nhị phân 16 bit từ phải sang trái, để ý nhớ ra MSB (CF) và nhớ nibble (AF). Sau đó tính PF trên byte thấp, ZF/SF trên kết quả, OF theo quy tắc dấu.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">   1234H = 0001 0010 0011 0100   (+4660 không dấu / +4660 có dấu)
+ + 5678H = 0101 0110 0111 1000   (+22136 / +22136)
+ ─────────────────────────────
+ = 68ACH = 0110 1000 1010 1100   (+26796 / +26796)
+ (Không có nhớ ra bit 15 → CF = 0)</div>
+    <ul>
+      <li><strong>CF (bit 0) = 0:</strong> Tổng 4660 + 22136 = 26796 ≤ 65535 (miền 16-bit không dấu), không có nhớ ra khỏi bit 15.</li>
+      <li><strong>PF (bit 2) = 1:</strong> Byte thấp của 68ACH là ACH = 1010 1100, có 4 bit 1 (số chẵn) → PF = 1.</li>
+      <li><strong>AF (bit 4) = 0:</strong> Nibble thấp: 4 + 8 = C (= 12), không vượt F → không có nhớ từ bit 3 sang bit 4.</li>
+      <li><strong>ZF (bit 6) = 0:</strong> Kết quả 68ACH ≠ 0000H.</li>
+      <li><strong>SF (bit 7) = 0:</strong> Bit 15 (MSB) của 68ACH = 0 → kết quả dương.</li>
+      <li><strong>OF (bit 11) = 0:</strong> Cộng 2 số dương (MSB đều = 0) ra kết quả vẫn dương (MSB = 0) → không đổi dấu → không tràn có dấu.</li>
+    </ul>
+    <p><strong>✓ Kết quả:</strong> R = 68ACH | CF = 0, PF = 1, AF = 0, ZF = 0, SF = 0, OF = 0</p>
+    <p><strong>🔍 Kiểm tra:</strong> Đảo ngược phép cộng: 68ACH − 5678H = 1234H ✓. Tổng không dấu 26796 < 65535 nên CF = 0 ✓. Tổng có dấu +26796 trong miền [−32768, +32767] nên OF = 0 ✓.</p>
+  </div>
+</div>
 
-<script>
-const exercises = [
-  {
-    question: "Tính các cờ CF, PF, AF, ZF, SF, OF sau phép <strong>ADD AX, BX</strong> với <strong>AX = 1234H</strong>, <strong>BX = 5678H</strong>.",
-    answer: `1234H + 5678H = 68ACH<br>
-    CF = 0 (không có nhớ ra MSB, tổng &lt; FFFFH)<br>
-    PF = 0 (byte thấp AC = 1010 1100, có 4 bit 1 — chẵn... sửa lại: AC = 1010 1100 = 4 bit 1 → CHẴN → PF = 1)<br>
-    <strong>PF = 1</strong> (byte thấp ACH = 1010 1100, có 4 bit 1 — chẵn)<br>
-    AF = 0 (nibble thấp: 4 + 8 = C, không nhớ)<br>
-    ZF = 0 (kết quả 68ACH ≠ 0)<br>
-    SF = 0 (MSB của 68ACH = 0)<br>
-    OF = 0 (cộng 2 số dương ra kết quả dương)`
-  },
-  {
-    question: "Tính các cờ sau phép <strong>SUB AX, BX</strong> với <strong>AX = 0005H</strong>, <strong>BX = 0008H</strong>. (Lưu ý: đây là phép trừ ra số âm trong 16 bit bù 2)",
-    answer: `0005H − 0008H = FFFDH (bù 2 của −3)<br>
-    CF = 1 (A &lt; B nên có mượn: 0005 &lt; 0008)<br>
-    PF = 1 (byte thấp FD = 1111 1101, 7 bit 1... 7 lẻ → PF = 0. Sửa: FD = 1111 1101 có 7 bit 1 → LẺ → PF = 0)<br>
-    <strong>PF = 0</strong> (FDH có 7 bit 1 — lẻ)<br>
-    AF = 1 (nibble thấp: 5 &lt; 8 nên mượn)<br>
-    ZF = 0 (kết quả FFFDH ≠ 0)<br>
-    SF = 1 (MSB của FFFDH = 1 — kết quả âm)<br>
-    OF = 0 (dương − dương = âm, đúng miền bù 2, không tràn)`
-  },
-  {
-    question: "Tại sao <strong>OF = 1</strong> khi ADD 7FFFH + 0001H nhưng <strong>CF = 0</strong>? Giải thích chi tiết.",
-    answer: `7FFFH + 0001H = 8000H<br>
-    • CF (tràn không dấu): xem 7FFF và 0001 là số nguyên không dấu: 32767 + 1 = 32768 ≤ 65535 (miền 16-bit) → không tràn → CF = 0.<br>
-    • OF (tràn có dấu): xem 7FFFH = +32767, 0001H = +1. Cộng 2 số dương phải ra dương, nhưng kết quả 8000H có MSB = 1 → là −32768 trong bù 2 → dấu bị đổi → tràn → OF = 1.<br>
-    <strong>Kết luận</strong>: CF và OF phản ánh 2 loại tràn khác nhau. CF cho số không dấu, OF cho số có dấu.`
-  },
-  {
-    question: "Cho FR = <strong>0A86H</strong>. Các cờ nào đang được set (=1)?",
-    answer: `0A86H = 0000 1010 1000 0110 (16 bit)<br>
-    Đọc từ trái (bit 15) sang phải (bit 0):<br>
-    bit 15..12 = 0000 → không có cờ<br>
-    bit 11 = 1 → <strong>OF = 1</strong> (tràn có dấu)<br>
-    bit 10 = 0 → DF = 0<br>
-    bit 9 = 1 → <strong>IF = 1</strong> (cho phép ngắt)<br>
-    bit 8 = 0 → TF = 0<br>
-    bit 7 = 1 → <strong>SF = 1</strong> (kết quả âm)<br>
-    bit 6 = 0 → ZF = 0<br>
-    bit 5 = 0<br>
-    bit 4 = 0 → AF = 0<br>
-    bit 3 = 0<br>
-    bit 2 = 1 → <strong>PF = 1</strong> (byte thấp chẵn số bit 1)<br>
-    bit 1 = 1 → bit dự trữ (không dùng)<br>
-    bit 0 = 0 → CF = 0<br>
-    → Các cờ set: <strong>OF, IF, SF, PF</strong>`
-  }
-];
+<!-- Bài 2 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Tính các cờ sau phép <strong>SUB AX, BX</strong> với <strong>AX = 0005H</strong>, <strong>BX = 0008H</strong>. (Lưu ý: đây là phép trừ ra số âm trong 16 bit bù 2)</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-12-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-12-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Phép SUB 16-bit A − B; CF = mượn (A &lt; B), kết quả = bù 2 của (B − A) khi A &lt; B.</p>
+    <p><strong>💡 Cách áp dụng:</strong> Vì A = 5 &lt; B = 8, kết quả âm. Trong bù 2 16-bit, kết quả = 2^16 + (A − B) = 65536 + (5 − 8) = 65533 = FFFDH. Mượn → CF = 1. Nibble thấp 5 &lt; 8 → AF = 1 (mượn nibble).</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">   0005H = 0000 0000 0000 0101   (+5)
+ − 0008H = 0000 0000 0000 1000   (+8)
+ ─────────────────────────────
+ = FFFDH = 1111 1111 1111 1101   (−3 dạng bù 2 16-bit)
+ (Có mượn vì 5 &lt; 8 → CF = 1)</div>
+    <ul>
+      <li><strong>CF (bit 0) = 1:</strong> Số bị trừ A = 0005H &lt; số trừ B = 0008H → cần mượn 1 từ bậc cao hơn → CF = 1.</li>
+      <li><strong>PF (bit 2) = 0:</strong> Byte thấp của FFFDH là FDH = 1111 1101, có 7 bit 1 (số lẻ) → PF = 0.</li>
+      <li><strong>AF (bit 4) = 1:</strong> Nibble thấp 5 &lt; 8 → phải mượn từ nibble cao → AF = 1.</li>
+      <li><strong>ZF (bit 6) = 0:</strong> Kết quả FFFDH ≠ 0000H.</li>
+      <li><strong>SF (bit 7) = 1:</strong> Bit 15 (MSB) của FFFDH = 1 → kết quả âm (theo bù 2).</li>
+      <li><strong>OF (bit 11) = 0:</strong> Trừ 2 số dương (MSB đều 0) ra kết quả âm hợp lệ trong miền bù 2 [−32768, +32767]: +5 − +8 = −3 (đúng miền) → không tràn → OF = 0.</li>
+    </ul>
+    <p><strong>✓ Kết quả:</strong> R = FFFDH (biểu diễn −3 trong bù 2) | CF = 1, PF = 0, AF = 1, ZF = 0, SF = 1, OF = 0</p>
+    <p><strong>🔍 Kiểm tra:</strong> Đảo ngược: FFFDH + 0008H = 10005H → drop bit 16 → 0005H ✓. Bù 2 của 0003H = FFFDH ✓ (FFFFH − 0003H + 1 = FFFDH). Kết quả −3 nằm trong miền bù 2 16-bit → OF = 0 ✓.</p>
+  </div>
+</div>
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+<!-- Bài 3 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Tại sao <strong>OF = 1</strong> khi ADD 7FFFH + 0001H nhưng <strong>CF = 0</strong>? Giải thích chi tiết.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-12-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-12-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Phân biệt 2 khái niệm tràn: CF = tràn <em>không dấu</em> (miền 0..2^n−1), OF = tràn <em>có dấu</em> (miền −2^(n−1)..2^(n−1)−1).</p>
+    <p><strong>💡 Cách áp dụng:</strong> Với n = 16: miền không dấu = 0..65535, miền có dấu = −32768..+32767. Cùng một kết quả 8000H nhưng được diễn giải khác nhau tùy góc nhìn.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">   7FFFH = 0111 1111 1111 1111   (+32767 cả 2 cách xem)
+ + 0001H = 0000 0000 0000 0001   (+1)
+ ─────────────────────────────
+ = 8000H = 1000 0000 0000 0000
+           → Không dấu: +32768 (CF = 0 vì còn trong miền)
+           → Có dấu:    −32768 (OF = 1 vì dấu bị đổi)</div>
+    <p><strong>Phân tích CF (tràn không dấu):</strong></p>
+    <ul>
+      <li>Xem 7FFFH = 32767, 0001H = 1 (số nguyên không dấu).</li>
+      <li>Tổng 32767 + 1 = 32768. Miền 16-bit không dấu = 0..65535.</li>
+      <li>32768 ≤ 65535 → không tràn → <strong>CF = 0</strong>.</li>
+      <li>Bit MSB của 7FFFH và 0001H đều = 0; 0 + 0 = 0 (không sinh nhớ ra bit 16).</li>
+    </ul>
+    <p><strong>Phân tích OF (tràn có dấu):</strong></p>
+    <ul>
+      <li>Xem 7FFFH = +32767, 0001H = +1 (số bù 2 có dấu). Cả 2 đều dương (MSB = 0).</li>
+      <li>Cộng 2 số dương phải ra số dương (MSB của kết quả phải = 0).</li>
+      <li>Nhưng kết quả 8000H có MSB = 1 → bị diễn giải thành −32768 trong bù 2.</li>
+      <li>Dấu bị đổi từ (+) sang (−) → vi phạm quy tắc dấu → tràn miền có dấu [−32768, +32767] → <strong>OF = 1</strong>.</li>
+      <li>Cách khác: +32767 + +1 = +32768 &gt; +32767 (vượt ngưỡng trên miền có dấu) → OF = 1.</li>
+    </ul>
+    <p><strong>✓ Kết quả:</strong> CF = 0 (không tràn không dấu), OF = 1 (tràn có dấu). Cùng một phép cộng nhưng CF và OF phản ánh 2 góc nhìn khác nhau về "tràn".</p>
+    <p><strong>🔍 Kiểm tra:</strong> Tổng có dấu +32768 &gt; +32767 → OF = 1 ✓. Tổng không dấu 32768 ≤ 65535 → CF = 0 ✓. Công thức bit: OF = C_out(MSB) ⊕ C_in(MSB) = 0 ⊕ 1 = 1 ✓.</p>
+  </div>
+</div>
+
+<!-- Bài 4 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Cho FR = <strong>0A86H</strong>. Các cờ nào đang được set (=1)?</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-12-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-12-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p><strong>📌 Công thức áp dụng:</strong> Đọc từng bit của FR 16-bit, đối chiếu với 9 vị trí cờ: CF(0), PF(2), AF(4), ZF(6), SF(7), TF(8), IF(9), DF(10), OF(11). Bit 1, 3, 5, 12-15 là bit dự trữ (không phải cờ).</p>
+    <p><strong>💡 Cách áp dụng:</strong> Chuyển FR từ hex sang nhị phân 16 bit, đọc từ bit 15 (trái cùng) xuống bit 0 (phải cùng), kiểm tra 9 vị trí cờ có giá trị 1 hay 0.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">0A86H = 0000 1010 1000 0110 (16 bit)
+         bit:  15 14 13 12 | 11 10 9 8 | 7 6 5 4 | 3 2 1 0
+         giá trị: 0 0 0 0  | 1  0  1 0 | 1 0 0 0 | 0 1 1 0</div>
+    <p>Đọc từng cờ:</p>
+    <ul>
+      <li>bit 11 = 1 → <strong>OF = 1</strong> (tràn có dấu — kết quả trước đó tràn miền có dấu)</li>
+      <li>bit 10 = 0 → DF = 0 (lệnh chuỗi chạy tiến)</li>
+      <li>bit 9 = 1 → <strong>IF = 1</strong> (CPU cho phép nhận ngắt INTR)</li>
+      <li>bit 8 = 0 → TF = 0 (CPU chạy bình thường, không debug)</li>
+      <li>bit 7 = 1 → <strong>SF = 1</strong> (kết quả phép toán trước âm)</li>
+      <li>bit 6 = 0 → ZF = 0 (kết quả trước ≠ 0)</li>
+      <li>bit 4 = 0 → AF = 0 (không có nhớ nibble)</li>
+      <li>bit 2 = 1 → <strong>PF = 1</strong> (byte thấp của kết quả trước có số bit 1 chẵn)</li>
+      <li>bit 0 = 0 → CF = 0 (không có nhớ/mượn ra MSB)</li>
+      <li><em>bit 1 = 1 là bit dự trữ (không phải cờ, bỏ qua).</em></li>
+    </ul>
+    <p><strong>✓ Kết quả:</strong> Các cờ được set (= 1): <strong>OF, IF, SF, PF</strong> (4 cờ). Các cờ = 0: CF, AF, ZF, TF, DF (5 cờ).</p>
+    <p><strong>🔍 Kiểm tra:</strong> Tổng các bit cờ set: OF (2^11 = 2048) + IF (2^9 = 512) + SF (2^7 = 128) + PF (2^2 = 4) = 2692 = 0A84H. Cộng thêm bit 1 dự trữ (2^1 = 2): 0A84H + 2 = 0A86H ✓ khớp với FR đề bài.</p>
+  </div>
+</div>
+
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -694,6 +798,5 @@ R = 8000H | CF=0, PF=1, AF=1, ZF=0, SF=1, OF=1</pre>
   <a href="13-pipeline.html" class="btn">Bài 13: Pipeline &amp; Hazards →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

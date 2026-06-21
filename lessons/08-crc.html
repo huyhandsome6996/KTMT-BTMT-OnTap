@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<script src="../assets/common.js"></script>
 </head>
 <body>
 
@@ -288,6 +289,7 @@ new StepReveal('step-demo', steps);
     <button class="tab active">Tab 1: Tính CRC</button>
     <button class="tab">Tab 2: Kiểm tra lỗi</button>
     <button class="tab">Tab 3: Bảng tra G(x)</button>
+    <button class="tab">Tab 4: Phép chia XOR (animation)</button>
   </div>
 
   <!-- Tab 1: Compute CRC -->
@@ -328,6 +330,24 @@ new StepReveal('step-demo', steps);
       <div class="callout-title">💡 Mẹo thi</div>
       <p>Đề thi thường cho sẵn G(x) dạng đa thức, bạn chỉ cần đổi ra binary là dùng được. <strong>Quy tắc đổi: vị trí nào có mặt trong đa thức → bit 1, vắng mặt → bit 0.</strong> Ví dụ $x^3 + 1$ → các vị trí 3 và 0 có mặt → <code>1001</code>.</p>
     </div>
+  </div>
+
+  <!-- Tab 4: Interactive XOR division animation -->
+  <div class="tab-content">
+    <p>Nhập M và G(x). Bấm <strong>"Bước tiếp theo"</strong> để xem từng bước XOR một. Mỗi bước highlight thanh ghi (working) và kết quả XOR. Cuối cùng sẽ ra CRC và dữ liệu truyền.</p>
+    <p>Nhập thông điệp M (chỉ 0/1, tối thiểu 1 bit):</p>
+    <input type="text" id="anim-M" value="1100" pattern="[01]+" style="font-family: var(--font-mono); font-size: 1rem; padding: 8px; width: 280px;">
+    <p class="mt-2">Nhập đa thức sinh G(x) (chỉ 0/1, bắt đầu bằng 1, tối thiểu 2 bit):</p>
+    <input type="text" id="anim-G" value="1011" pattern="1[01]*" style="font-family: var(--font-mono); font-size: 1rem; padding: 8px; width: 280px;">
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+      <button class="btn btn-success" onclick="crcAnimInit()">⚙️ Khởi tạo &amp; bắt đầu</button>
+      <button class="btn" onclick="crcAnimNext()">▶ Bước tiếp theo</button>
+      <button class="btn btn-secondary" onclick="crcAnimPrev()">◀ Quay lại</button>
+      <button class="btn btn-ghost" onclick="crcAnimShowAll()">⏭ Hiện tất cả</button>
+      <button class="btn btn-warn" onclick="crcAnimReset()">↺ Reset</button>
+    </div>
+    <div id="anim-progress" class="mt-2" style="font-size: 0.9rem; color: var(--text-secondary);">Chưa khởi tạo. Bấm "Khởi tạo &amp; bắt đầu" để tính CRC.</div>
+    <div id="anim-result" class="mt-2"></div>
   </div>
 </div>
 
@@ -459,88 +479,349 @@ Thương = ${quotient}</div>`;
     out.innerHTML = `<div class="result-box error"><span class="result-label">Lỗi:</span> ${e.message}</div>`;
   }
 }
+
+// === Tab 4: Interactive XOR division animation ===
+let crcAnimState = null; // { M, G, N, n, steps, currentStep, finalCRC, transmitted, quotient }
+
+function crcAnimInit() {
+  const out = document.getElementById('anim-result');
+  const prog = document.getElementById('anim-progress');
+  try {
+    const M = document.getElementById('anim-M').value.trim();
+    const G = document.getElementById('anim-G').value.trim();
+    validateBin(M, 'M', false);
+    validateBin(G, 'G', true);
+    if (M.length < G.length) throw new Error('M phải dài hơn hoặc bằng G.');
+
+    const n = G.length - 1;
+    const N = M + '0'.repeat(n);
+    const { crc, quotient, steps } = crcDivide(N, G);
+    const transmitted = M + crc;
+
+    crcAnimState = { M, G, N, n, steps, currentStep: 0, finalCRC: crc, transmitted, quotient };
+    prog.innerHTML = `Đã khởi tạo: M = <code>${M}</code> (${M.length} bit), G = <code>${G}</code> (${G.length} bit, bậc ${n}). N = M + ${n} bit 0 = <code>${N}</code> (${N.length} bit). Sẽ có <strong>${steps.length} bước</strong> XOR. Đang ở bước 0/${steps.length}.`;
+    crcAnimRender();
+  } catch (e) {
+    out.innerHTML = `<div class="result-box error"><span class="result-label">Lỗi:</span> ${e.message}</div>`;
+    prog.innerHTML = '';
+    crcAnimState = null;
+  }
+}
+
+function crcAnimNext() {
+  if (!crcAnimState) { crcAnimInit(); return; }
+  if (crcAnimState.currentStep < crcAnimState.steps.length) {
+    crcAnimState.currentStep++;
+    crcAnimRender();
+  }
+}
+
+function crcAnimPrev() {
+  if (!crcAnimState) return;
+  if (crcAnimState.currentStep > 0) {
+    crcAnimState.currentStep--;
+    crcAnimRender();
+  }
+}
+
+function crcAnimShowAll() {
+  if (!crcAnimState) { crcAnimInit(); if (crcAnimState) crcAnimState.currentStep = crcAnimState.steps.length; crcAnimRender(); return; }
+  crcAnimState.currentStep = crcAnimState.steps.length;
+  crcAnimRender();
+}
+
+function crcAnimReset() {
+  if (!crcAnimState) return;
+  crcAnimState.currentStep = 0;
+  crcAnimRender();
+}
+
+function crcAnimRender() {
+  if (!crcAnimState) return;
+  const s = crcAnimState;
+  const out = document.getElementById('anim-result');
+  const prog = document.getElementById('anim-progress');
+
+  let html = '';
+  // Header info
+  html += `<div class="callout callout-theory"><div class="callout-title">📋 Thông tin</div>`;
+  html += `<p><strong>M</strong> = <code>${s.M}</code> (${s.M.length} bit) | <strong>G</strong> = <code>${s.G}</code> (${s.G.length} bit, bậc ${s.n})</p>`;
+  html += `<p><strong>N = M + ${s.n} bit 0</strong> = <code>${s.N}</code> (${s.N.length} bit) — các bit 0 thêm vào sẽ highlight</p></div>`;
+
+  // Visualize N with appended zeros highlighted
+  html += `<p><strong>N(x) dưới dạng bit</strong> (đỏ = bit 0 thêm vào):</p>`;
+  html += `<div id="vis-N-anim"></div>`;
+
+  // Steps table — render only up to currentStep
+  html += `<p class="mt-2"><strong>Tiến độ: ${s.currentStep}/${s.steps.length} bước</strong></p>`;
+  html += `<div class="progress-bar" style="height: 8px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden; margin: 8px 0;"><div style="height:100%; background: var(--gradient-primary); width: ${(s.currentStep / s.steps.length) * 100}%; transition: width 0.3s;"></div></div>`;
+
+  if (s.currentStep === 0) {
+    html += `<div class="result-box"><span class="result-label">Sẵn sàng:</span>Bấm "▶ Bước tiếp theo" để bắt đầu phép chia XOR.</div>`;
+  } else {
+    html += `<table style="font-size:0.85rem; margin-top: 10px;"><tr><th>#</th><th>Thanh ghi</th><th>Hạ từ N</th><th>MSB</th><th>XOR G?</th><th>Sau XOR</th><th>Dư tạm</th><th>Q</th></tr>`;
+    for (let i = 0; i < s.currentStep; i++) {
+      const step = s.steps[i];
+      const xorCol = step.msb === '1' ? `Có <code>${step.xorWith}</code>` : 'Không';
+      const isLast = (i === s.steps.length - 1);
+      const remCol = isLast ? `<strong style="color: var(--accent);">${step.remainder} (CRC!)</strong>` : `<code>${step.remainder}</code>`;
+      const rowStyle = (i === s.currentStep - 1) ? 'background: var(--primary-bg);' : '';
+      html += `<tr style="${rowStyle}"><td>${step.step}</td><td><code>${step.working}</code></td><td>${step.broughtDown}</td><td><strong>${step.msb}</strong></td><td>${xorCol}</td><td><code>${step.result}</code></td><td>${remCol}</td><td>${step.quotientBit}</td></tr>`;
+    }
+    html += `</table>`;
+
+    // Step detail (for current step)
+    const curr = s.steps[s.currentStep - 1];
+    html += `<div class="callout callout-tip" style="margin-top: 10px;"><div class="callout-title">🔎 Chi tiết bước ${curr.step}</div>`;
+    html += `<p>Thanh ghi hiện tại (working): <code>${curr.working}</code></p>`;
+    if (curr.msb === '1') {
+      html += `<p>MSB = <strong>1</strong> → <strong>XOR</strong> thanh ghi với G = <code>${curr.xorWith}</code>:</p>`;
+      html += `<div class="code-block">  ${curr.working}
+⊕ ${curr.xorWith}
+─────────────
+  ${curr.result}</div>`;
+    } else {
+      html += `<p>MSB = <strong>0</strong> → <strong>không XOR</strong> (giữ nguyên thanh ghi). Kết quả: <code>${curr.result}</code></p>`;
+    }
+    html += `<p>Bỏ bit đầu (luôn = 0 sau xử lý) → dư tạm = <code>${curr.remainder}</code> · Bit thương Q = <strong>${curr.quotientBit}</strong></p>`;
+    html += `</div>`;
+  }
+
+  // Final result if all steps done
+  if (s.currentStep === s.steps.length) {
+    html += `<div class="result-box"><span class="result-label">CRC =</span><strong>${s.finalCRC}</strong> (${s.finalCRC.length} bit)</div>`;
+    html += `<div class="result-box"><span class="result-label">Thương Q =</span><code>${s.quotient}</code> (không cần quan tâm)</div>`;
+    html += `<div class="result-box"><span class="result-label">Dữ liệu truyền = M + CRC =</span><strong>${s.transmitted}</strong> (${s.transmitted.length} bit)</div>`;
+    html += `<div class="callout callout-tip"><div class="callout-title">🔍 Kiểm tra</div><p>Chia dữ liệu truyền <code>${s.transmitted}</code> cho G = <code>${s.G}</code> → phần dư sẽ = 0 (vì CRC được thiết kế để chia hết). Tự kiểm tra bằng Tab 2!</p></div>`;
+  }
+
+  out.innerHTML = html;
+  prog.innerHTML = `Đang ở bước <strong>${s.currentStep}/${s.steps.length}</strong>. ${s.currentStep === s.steps.length ? '✓ Đã hoàn thành!' : 'Bấm "▶ Bước tiếp theo" để tiếp tục.'}`;
+
+  // Render N bits
+  const visN = document.getElementById('vis-N-anim');
+  if (visN) {
+    visN.innerHTML = '';
+    const hl = [];
+    for (let i = s.M.length; i < s.N.length; i++) hl.push(i);
+    visN.appendChild(Bit.renderBits(s.N, { highlight: hl, labels: true }));
+  }
+}
 </script>
 
 <!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
 <h2>✍️ Bài tập tự giải</h2>
 
-<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra. Mẹo: viết phép chia ra giấy cho rõ ràng.</p>
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra. Mẹo: viết phép chia ra giấy cho rõ ràng. Mỗi đáp án có <strong>công thức áp dụng</strong>, <strong>cách giải</strong>, <strong>tính toán từng bước</strong>, <strong>kết quả</strong> và <strong>phần kiểm tra</strong>.</p>
 
-<div id="practice-exercises"></div>
+<!-- Bài 1: M=1100, G=1011 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 1</div>
+  <p>Tính CRC cho <strong>M = 1100</strong> (4 bit) với <strong>G(x) = x³ + x + 1 = 1011</strong>. Tìm dữ liệu truyền đi.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-8-1').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-8-1" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> Bậc G = n = 3 → N = M + 3 bit 0. Chia N cho G bằng XOR (mod-2). CRC = phần dư (n bit). Dữ liệu truyền = M + CRC. <em>XOR: 1⊕1=0, 1⊕0=1, 0⊕0=0, 0⊕1=1.</em></p>
+    <p><strong>💡 Cách áp dụng:</strong> Khởi tạo thanh ghi = 4 bit đầu của N. Mỗi bước: xem MSB — nếu =1 thì XOR với G, nếu =0 thì bỏ qua. Bỏ bit đầu, hạ 1 bit từ N xuống. Lặp đến khi hết N. Dư cuối = CRC.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 0 — Chuẩn bị:
+  G(x) = 1011   (4 bit, bậc n = 3)
+  N = M + 3 bit 0 = 1100 + 000 = 1100000   (7 bit)
+  → Sẽ có 7 − 4 + 1 = 4 bước XOR
 
-<script>
-const exercises = [
-  {
-    question: "Tính CRC cho <strong>M = 1100</strong> (4 bit) với <strong>G(x) = x³ + x + 1 = 1011</strong>. Tìm dữ liệu truyền đi.",
-    answer: `G(x) = 1011 → bậc n = 3 → thêm 3 bit 0 vào sau M.<br>
-    N = 1100 + 000 = <strong>1100000</strong> (7 bit)<br><br>
-    <strong>Chia N cho G bằng XOR:</strong><br>
-    Bước 1: working = 1100, MSB=1, XOR 1011 → 0111, dư = 111<br>
-    Bước 2: hạ N[4]=0 → working = 1110, MSB=1, XOR 1011 → 0101, dư = 101<br>
-    Bước 3: hạ N[5]=0 → working = 1010, MSB=1, XOR 1011 → 0001, dư = 001<br>
-    Bước 4: hạ N[6]=0 → working = 0010, MSB=0, không XOR, dư = 010<br><br>
-    <strong>CRC = 010</strong><br>
-    <strong>Dữ liệu truyền = M + CRC = 1100 + 010 = 1100010</strong>`
-  },
-  {
-    question: "Tính CRC cho <strong>M = 101010</strong> (6 bit) với <strong>G(x) = x³ + x² + 1 = 1101</strong>. Tìm dữ liệu truyền đi.",
-    answer: `G(x) = 1101 → bậc n = 3 → thêm 3 bit 0.<br>
-    N = 101010 + 000 = <strong>101010000</strong> (9 bit)<br><br>
-    <strong>Chia N cho G bằng XOR:</strong><br>
-    Bước 1: 1010, MSB=1, XOR 1101 → 0111, dư = 111<br>
-    Bước 2: hạ 1 → 1111, MSB=1, XOR 1101 → 0010, dư = 010<br>
-    Bước 3: hạ 0 → 0100, MSB=0, không XOR, dư = 100<br>
-    Bước 4: hạ 0 → 1000, MSB=1, XOR 1101 → 0101, dư = 101<br>
-    Bước 5: hạ 0 → 1010, MSB=1, XOR 1101 → 0111, dư = 111<br>
-    Bước 6: hạ 0 → 1110, MSB=1, XOR 1101 → 0011, dư = 011<br><br>
-    <strong>CRC = 011</strong><br>
-    <strong>Dữ liệu truyền = 101010 + 011 = 101010011</strong>`
-  },
-  {
-    question: "Bên nhận nhận được <strong>101011010110</strong>, đa thức sinh <strong>G = 1101</strong>. Dữ liệu có bị lỗi không?",
-    answer: `Chia dữ liệu nhận cho G:<br>
-    N = 101011010110 (12 bit), G = 1101<br><br>
-    Bước 1: 1010, XOR 1101 → 0111, dư = 111<br>
-    Bước 2: hạ 1 → 1111, XOR 1101 → 0010, dư = 010<br>
-    Bước 3: hạ 1 → 0101, MSB=0, không XOR, dư = 101<br>
-    Bước 4: hạ 0 → 1010, XOR 1101 → 0111, dư = 111<br>
-    Bước 5: hạ 1 → 1111, XOR 1101 → 0010, dư = 010<br>
-    Bước 6: hạ 0 → 0100, MSB=0, không XOR, dư = 100<br>
-    Bước 7: hạ 1 → 1001, XOR 1101 → 0100, dư = 100<br>
-    Bước 8: hạ 1 → 1001, XOR 1101 → 0100, dư = 100<br>
-    Bước 9: hạ 0 → 1000, XOR 1101 → 0101, dư = 101<br><br>
-    <strong>Phần dư = 101 ≠ 000 → CÓ LỖI!</strong> Dữ liệu bị hỏng trong quá trình truyền.`
-  },
-  {
-    question: "Tính CRC cho <strong>M = 1111</strong> với <strong>G(x) = x⁴ + x + 1 = 10011</strong>. Tìm dữ liệu truyền đi.",
-    answer: `G(x) = 10011 → bậc n = 4 → thêm 4 bit 0.<br>
-    N = 1111 + 0000 = <strong>11110000</strong> (8 bit)<br><br>
-    <strong>Chia N cho G bằng XOR (4 bước = 8−5+1):</strong><br>
-    Bước 1: 11110, MSB=1, XOR 10011 → 01101, dư = 1101<br>
-    Bước 2: hạ N[5]=0 → 11010, MSB=1, XOR 10011 → 01001, dư = 1001<br>
-    Bước 3: hạ N[6]=0 → 10010, MSB=1, XOR 10011 → 00001, dư = 0001<br>
-    Bước 4: hạ N[7]=0 → 00010, MSB=0, không XOR, dư = 0010<br><br>
-    <strong>CRC = 0010</strong><br>
-    <strong>Dữ liệu truyền = 1111 + 0010 = 11110010</strong><br><br>
-    <em>Kiểm tra: 11110010 chia 10011 → dư = 0 ✓ (tự kiểm tra!)</em>`
-  }
-];
+Bước 1: working = 1100  (4 bit đầu của N)
+  MSB = 1 → XOR với G = 1011:
+    1100
+  ⊕ 1011
+  ─────
+    0111
+  Bỏ bit đầu (=0) → dư tạm = 111
+  Bit thương Q = 1
 
-const exContainer = document.getElementById('practice-exercises');
-exercises.forEach((ex, i) => {
-  const div = document.createElement('div');
-  div.className = 'callout callout-example';
-  div.innerHTML = `
-    <div class="callout-title">📝 Bài ${i + 1}</div>
-    <p>${ex.question}</p>
-    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
-    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
-      ${ex.answer}
-    </div>
-  `;
-  exContainer.appendChild(div);
-});
-</script>
+Bước 2: hạ N[4]=0 → working = 1110
+  MSB = 1 → XOR với 1011:
+    1110
+  ⊕ 1011
+  ─────
+    0101
+  Dư tạm = 101
+  Q = 1
+
+Bước 3: hạ N[5]=0 → working = 1010
+  MSB = 1 → XOR với 1011:
+    1010
+  ⊕ 1011
+  ─────
+    0001
+  Dư tạm = 001
+  Q = 1
+
+Bước 4: hạ N[6]=0 → working = 0010
+  MSB = 0 → KHÔNG XOR (giữ nguyên)
+  Dư tạm = 010
+  Q = 0
+
+  → Dư cuối = CRC = 010   (3 bit, đúng bằng bậc của G)
+  → Thương Q = 1110   (không cần quan tâm)</div>
+    <p><strong>✓ Kết quả:</strong> CRC = <strong>010</strong>, dữ liệu truyền = M + CRC = 1100 + 010 = <strong>1100010</strong></p>
+    <p><strong>🔍 Kiểm tra (chia dữ liệu truyền cho G, dư phải = 0):</strong></p>
+    <div class="code-block">Chia 1100010 cho 1011:
+  B1: 1100 ⊕ 1011 = 0111 → dư 111
+  B2: hạ 0 → 1110 ⊕ 1011 = 0101 → dư 101
+  B3: hạ 1 → 1011 ⊕ 1011 = 0000 → dư 000
+  B4: hạ 0 → 0000 (MSB=0, không XOR) → dư 000
+  → Dư = 000 ✓ (chia hết, dữ liệu nguyên vẹn)</div>
+  </div>
+</div>
+
+<!-- Bài 2: M=101010, G=1101 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 2</div>
+  <p>Tính CRC cho <strong>M = 101010</strong> (6 bit) với <strong>G(x) = x³ + x² + 1 = 1101</strong>. Tìm dữ liệu truyền đi.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-8-2').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-8-2" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> N = M + n bit 0 (n = bậc G). Chia N cho G bằng XOR. CRC = phần dư. Dữ liệu truyền = M || CRC.</p>
+    <p><strong>💡 Cách áp dụng:</strong> G = 1101 (bậc 3) → thêm 3 bit 0. N có 9 bit → 9−4+1 = 6 bước XOR. Mỗi bước: MSB=1 XOR, MSB=0 bỏ qua.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 0 — Chuẩn bị:
+  G = 1101   (4 bit, bậc n = 3)
+  N = 101010 + 000 = 101010000   (9 bit)
+  → 9 − 4 + 1 = 6 bước XOR
+
+Bước 1: working = 1010
+  MSB=1 → XOR 1101: 1010 ⊕ 1101 = 0111 → dư = 111, Q=1
+
+Bước 2: hạ N[4]=1 → working = 1111
+  MSB=1 → XOR 1101: 1111 ⊕ 1101 = 0010 → dư = 010, Q=1
+
+Bước 3: hạ N[5]=0 → working = 0100
+  MSB=0 → KHÔNG XOR → dư = 100, Q=0
+
+Bước 4: hạ N[6]=0 → working = 1000
+  MSB=1 → XOR 1101: 1000 ⊕ 1101 = 0101 → dư = 101, Q=1
+
+Bước 5: hạ N[7]=0 → working = 1010
+  MSB=1 → XOR 1101: 1010 ⊕ 1101 = 0111 → dư = 111, Q=1
+
+Bước 6: hạ N[8]=0 → working = 1110
+  MSB=1 → XOR 1101: 1110 ⊕ 1101 = 0011 → dư = 011, Q=1
+
+  → Dư cuối = CRC = 011   (3 bit)
+  → Thương Q = 110111</div>
+    <p><strong>✓ Kết quả:</strong> CRC = <strong>011</strong>, dữ liệu truyền = M + CRC = 101010 + 011 = <strong>101010011</strong></p>
+    <p><strong>🔍 Kiểm tra (chia dữ liệu truyền cho G):</strong></p>
+    <div class="code-block">Chia 101010011 cho 1101:
+  B1: 1010 ⊕ 1101 = 0111 → dư 111
+  B2: hạ 1 → 1111 ⊕ 1101 = 0010 → dư 010
+  B3: hạ 0 → 0100 (MSB=0, skip) → dư 100
+  B4: hạ 0 → 1000 ⊕ 1101 = 0101 → dư 101
+  B5: hạ 1 → 1011 ⊕ 1101 = 0110 → dư 110
+  B6: hạ 1 → 1101 ⊕ 1101 = 0000 → dư 000
+  → Dư = 000 ✓ (chia hết, dữ liệu nguyên vẹn)</div>
+  </div>
+</div>
+
+<!-- Bài 3: Kiểm tra lỗi 101011010110 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 3</div>
+  <p>Bên nhận nhận được <strong>101011010110</strong>, đa thức sinh <strong>G = 1101</strong>. Dữ liệu có bị lỗi không?</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-8-3').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-8-3" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> Tại đầu nhận, chia dữ liệu nhận cho G(x). <strong>Dư = 0 → không lỗi. Dư ≠ 0 → có lỗi.</strong> (Không cần biết M gốc, chỉ cần G.)</p>
+    <p><strong>💡 Cách áp dụng:</strong> Dữ liệu 12 bit, G 4 bit → 12 − 4 + 1 = 9 bước XOR. Tính phần dư cuối. Nếu dư = 000 → dữ liệu nguyên vẹn, ngược lại → bị lỗi.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 0 — Dữ liệu nhận: 101011010110 (12 bit), G = 1101
+  → 12 − 4 + 1 = 9 bước XOR
+
+Bước 1: working = 1010, MSB=1
+  1010 ⊕ 1101 = 0111 → dư = 111, Q=1
+Bước 2: hạ 1 → 1111, MSB=1
+  1111 ⊕ 1101 = 0010 → dư = 010, Q=1
+Bước 3: hạ 1 → 0101, MSB=0 → skip → dư = 101, Q=0
+Bước 4: hạ 0 → 1010, MSB=1
+  1010 ⊕ 1101 = 0111 → dư = 111, Q=1
+Bước 5: hạ 1 → 1111, MSB=1
+  1111 ⊕ 1101 = 0010 → dư = 010, Q=1
+Bước 6: hạ 0 → 0100, MSB=0 → skip → dư = 100, Q=0
+Bước 7: hạ 1 → 1001, MSB=1
+  1001 ⊕ 1101 = 0100 → dư = 100, Q=1
+Bước 8: hạ 1 → 1001, MSB=1
+  1001 ⊕ 1101 = 0100 → dư = 100, Q=1
+Bước 9: hạ 0 → 1000, MSB=1
+  1000 ⊕ 1101 = 0101 → dư = 101, Q=1
+
+  → Dư cuối = 101 ≠ 000</div>
+    <p><strong>✓ Kết quả:</strong> Phần dư = <strong>101 ≠ 000 → CÓ LỖI!</strong> Dữ liệu bị hỏng trong quá trình truyền.</p>
+    <p><strong>🔍 Kiểm tra (giải thích vì sao CRC phát hiện được):</strong></p>
+    <div class="code-block">CRC có tính chất: dữ liệu truyền (M + CRC) luôn chia hết cho G(x) → dư = 0.
+  Nếu 1+ bit bị đảo trong truyền → chuỗi nhận khác chuỗi gửi → không còn chia hết → dư ≠ 0.
+
+  Lưu ý:
+  - CRC chỉ PHÁT HIỆN lỗi, không SỬA được.
+  - Để sửa lỗi, dùng mã Hamming (xem Bài 9-10).
+  - Trong thực tế, bên nhận yêu cầu bên gửi truyền lại (ARQ/retransmission).
+
+  Một số pattern lỗi CRC vẫn không thấy (rất hiếm):
+  - Lỗi mà pattern bit trùng với G(x) hoặc bội của G(x).
+  - Nhưng xác suất rất thấp với G(x) chuẩn (vd CRC-32 → tỉ lệ hụt ~ 2^-32).</div>
+  </div>
+</div>
+
+<!-- Bài 4: M=1111, G=10011 -->
+<div class="callout callout-example">
+  <div class="callout-title">📝 Bài 4</div>
+  <p>Tính CRC cho <strong>M = 1111</strong> với <strong>G(x) = x⁴ + x + 1 = 10011</strong>. Tìm dữ liệu truyền đi.</p>
+  <button class="btn btn-ghost" onclick="document.getElementById('ans-8-4').classList.toggle('hidden')">Xem đáp án</button>
+  <div id="ans-8-4" class="hidden mt-2" style="background: var(--bg-elevated); padding: 16px; border-radius: 10px; border-left: 4px solid var(--success);">
+    <p style="margin-top:0;"><strong>📌 Công thức áp dụng:</strong> N = M + n bit 0 (n = bậc G = 4). Chia N cho G bằng XOR. CRC = dư (4 bit). Dữ liệu truyền = M || CRC.</p>
+    <p><strong>💡 Cách áp dụng:</strong> G = 10011 (5 bit, bậc 4) → thêm 4 bit 0. N có 8 bit → 8 − 5 + 1 = 4 bước XOR. Mỗi bước xem MSB để quyết định XOR hay skip.</p>
+    <p><strong>🧮 Tính toán từng bước:</strong></p>
+    <div class="code-block">Bước 0 — Chuẩn bị:
+  G(x) = x^4 + x + 1 = 10011   (5 bit, bậc n = 4)
+  N = 1111 + 0000 = 11110000   (8 bit)
+  → 8 − 5 + 1 = 4 bước XOR
+
+Bước 1: working = 11110
+  MSB=1 → XOR 10011:
+    11110
+  ⊕ 10011
+  ─────
+    01101
+  Dư tạm = 1101, Q=1
+
+Bước 2: hạ N[5]=0 → working = 11010
+  MSB=1 → XOR 10011:
+    11010
+  ⊕ 10011
+  ─────
+    01001
+  Dư tạm = 1001, Q=1
+
+Bước 3: hạ N[6]=0 → working = 10010
+  MSB=1 → XOR 10011:
+    10010
+  ⊕ 10011
+  ─────
+    00001
+  Dư tạm = 0001, Q=1
+
+Bước 4: hạ N[7]=0 → working = 00010
+  MSB=0 → KHÔNG XOR (giữ nguyên)
+  Dư tạm = 0010, Q=0
+
+  → Dư cuối = CRC = 0010   (4 bit, đúng bằng bậc của G)
+  → Thương Q = 1110</div>
+    <p><strong>✓ Kết quả:</strong> CRC = <strong>0010</strong>, dữ liệu truyền = M + CRC = 1111 + 0010 = <strong>11110010</strong></p>
+    <p><strong>🔍 Kiểm tra (chia dữ liệu truyền cho G):</strong></p>
+    <div class="code-block">Chia 11110010 cho 10011:
+  B1: 11110 ⊕ 10011 = 01101 → dư 1101
+  B2: hạ 0 → 11010 ⊕ 10011 = 01001 → dư 1001
+  B3: hạ 1 → 10011 ⊕ 10011 = 00000 → dư 0000
+  B4: hạ 0 → 00000 (MSB=0, skip) → dư 0000
+  → Dư = 0000 ✓ (chia hết, dữ liệu nguyên vẹn)
+
+  Trick nhớ: G(x) = x^4 + x + 1 = 10011 là CRC-4 ITU chuẩn, hay gặp trong đề thi.</div>
+  </div>
+</div>
 
 <!-- ============================== QUIZ ============================== -->
 <h2>❓ Kiểm tra hiểu bài</h2>
@@ -697,6 +978,5 @@ new Quiz('quiz-1', [
   <a href="09-hamming-sinh.html" class="btn">Bài 9: Hamming - Sinh mã →</a>
 </div>
 
-<script src="../assets/common.js"></script>
 </body>
 </html>

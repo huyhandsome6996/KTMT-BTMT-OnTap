@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 1: Hệ cơ số (Dec/Bin/Hex) - KTMT OnTap</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="../index.html">← Mục lục</a>
+  <strong>Bài 1: Hệ cơ số (Dec / Bin / Hex)</strong>
+  <span>1/14</span>
+</div>
+
+<h1>Bài 1: Hệ cơ số (Thập phân / Nhị phân / Hexa)</h1>
+
+<p class="text-center" style="color: var(--gray-700);">
+  Đây là bài học nền tảng quan trọng nhất. Nắm vững bài này trước khi học các bài khác.
+</p>
+
+<!-- ============================== LÝ THUYẾT ============================== -->
+<h2>📖 Lý thuyết</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">🔑 Kiến thức cốt lõi</div>
+  <p><strong>Máy tính chỉ hiểu hệ nhị phân (0 và 1)</strong> vì mạch điện tử chỉ có 2 trạng thái: có điện (1) / không điện (0). Nhưng con người khó đọc dài dẵng 0 và 1, nên dùng <strong>hệ hexa (16 chữ số)</strong> để viết gọn: <strong>4 bit nhị phân = 1 chữ số hexa</strong>.</p>
+</div>
+
+<h3>1. Các hệ cơ số</h3>
+
+<table>
+  <tr>
+    <th>Hệ</th>
+    <th>Cơ số</th>
+    <th>Chữ số dùng</th>
+    <th>Ví dụ</th>
+    <th>Ứng dụng</th>
+  </tr>
+  <tr>
+    <td><strong>Thập phân (Dec)</strong></td>
+    <td>10</td>
+    <td>0, 1, 2, ..., 9</td>
+    <td>438</td>
+    <td>Con người dùng hàng ngày</td>
+  </tr>
+  <tr>
+    <td><strong>Nhị phân (Bin)</strong></td>
+    <td>2</td>
+    <td>0, 1</td>
+    <td>110110110₂</td>
+    <td>Máy tính lưu trữ</td>
+  </tr>
+  <tr>
+    <td><strong>Hexa (Hex)</strong></td>
+    <td>16</td>
+    <td>0-9, A, B, C, D, E, F</td>
+    <td>1B6₁₆</td>
+    <td>Viết gọn mã nhị phân</td>
+  </tr>
+</table>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Mẹo nhớ bảng hexa</div>
+  <p>A=10, B=11, C=12, D=13, E=14, F=15. Từ A đến F tương ứng 10-15 (6 chữ cái cho 6 giá trị còn thiếu khi hệ 10 đã hết chữ số).</p>
+</div>
+
+<h3>2. Công thức đổi hệ</h3>
+
+<div class="callout callout-theory">
+  <div class="callout-title">📐 Các công thức cần nhớ</div>
+
+  <p><strong>1. Dec → Bin (chia 2 lấy dư, đọc ngược từ dưới lên):</strong></p>
+  <div class="code-block">N : 2 = thương dư r₀
+thương : 2 = thương' dư r₁
+... tiếp tục cho đến thương = 0
+→ Đọc dư từ dưới lên: rₙ rₙ₋₁ ... r₁ r₀</div>
+
+  <p><strong>2. Bin → Dec (nhân từng bit với 2^k):</strong></p>
+  <p>$$N = \sum_{k=0}^{n} b_k \cdot 2^k = b_n \cdot 2^n + b_{n-1} \cdot 2^{n-1} + ... + b_0 \cdot 2^0$$</p>
+  <p>Ví dụ: <code>1101₂ = 1·8 + 1·4 + 0·2 + 1·1 = 13</code></p>
+
+  <p><strong>3. Bin ↔ Hex (gom 4 bit):</strong></p>
+  <div class="code-block">Nhị phân: 1010 1100 0001 1011
+Hexa:      A    C    1    B   → AC1B₁₆</div>
+
+  <p><strong>4. Hex → Dec (nhân với 16^k):</strong></p>
+  <p>$$N = \sum_{k=0}^{n} d_k \cdot 16^k$$</p>
+  <p>Ví dụ: <code>AC1B₁₆ = 10·16³ + 12·16² + 1·16¹ + 11·16⁰ = 44059</code></p>
+
+  <p><strong>5. Dec → Hex (chia 16 lấy dư, đọc ngược):</strong> Tương tự Dec→Bin nhưng chia 16.</p>
+
+  <p><strong>6. Phần lẻ Dec → Bin (nhân 2 lấy phần nguyên, đọc xuôi):</strong></p>
+  <div class="code-block">0.625 × 2 = 1.25  → lấy 1, còn 0.25
+0.25  × 2 = 0.5   → lấy 0, còn 0.5
+0.5   × 2 = 1.0   → lấy 1, còn 0    → DỪNG
+→ 0.625₁₀ = 0.101₂</div>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Điểm dễ sai #1</div>
+  <p><strong>Phần NGUYÊN: CHIA 2 lấy DƯ, đọc TỪ DƯỚI LÊN.</strong></p>
+  <p><strong>Phần LẺ: NHÂN 2 lấy NGUYÊN, đọc TỪ TRÊN XUỐNG.</strong></p>
+  <p>Sinh viên hay nhầm chiều đọc. Hãy nhớ: "Phần nguyên chia 2 — dư tích lũy dưới đáy; Phần lẻ nhân 2 — nguyên tích lũy trên đỉnh".</p>
+</div>
+
+<!-- ============================== VÍ DỤ MẪU ============================== -->
+<h2>🎯 Ví dụ mẫu từng bước</h2>
+
+<div class="callout callout-example">
+  <div class="callout-title">📝 Đề bài</div>
+  <p>Cho số thập phân <strong>N = 438</strong>. Hãy:</p>
+  <ul style="padding-left: 20px;">
+    <li>a) Đổi N sang nhị phân</li>
+    <li>b) Đổi N sang hexa</li>
+    <li>c) Kiểm tra: đổi hexa ngược về thập phân</li>
+  </ul>
+</div>
+
+<div id="step-demo"></div>
+
+<script>
+// Step-by-step demo
+const steps = [
+  {
+    title: "Bước 1 — Đổi 438 sang nhị phân (chia 2 lấy dư)",
+    content: `
+      <p>Áp dụng công thức: <code>438 : 2 = thương + dư</code>. Tiếp tục chia thương cho 2 đến khi thương = 0.</p>
+      <div class="code-block">438 : 2 = 219 dư <strong class="text-accent">0</strong>   ← bit thấp nhất (LSB)
+219 : 2 = 109 dư <strong class="text-accent">1</strong>
+109 : 2 =  54 dư <strong class="text-accent">1</strong>
+ 54 : 2 =  27 dư <strong class="text-accent">0</strong>
+ 27 : 2 =  13 dư <strong class="text-accent">1</strong>
+ 13 : 2 =   6 dư <strong class="text-accent">1</strong>
+  6 : 2 =   3 dư <strong class="text-accent">0</strong>
+  3 : 2 =   1 dư <strong class="text-accent">1</strong>
+  1 : 2 =   0 dư <strong class="text-accent">1</strong>   ← bit cao nhất (MSB)</div>
+      <p><strong>Đọc từ dưới lên</strong> (từ MSB đến LSB):</p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>438₁₀ = 110110110₂</div>
+    `
+  },
+  {
+    title: "Bước 2 — Đổi 110110110₂ sang hexa (gom 4 bit)",
+    content: `
+      <p>Chia nhị phân thành các nhóm 4 bit, bắt đầu từ <strong>phải sang trái</strong>. Nếu nhóm cuối (bên trái) thiếu bit, thêm số 0 phía trước.</p>
+      <div class="code-block">110110110  →  thêm 1 số 0 phía trước cho đủ nhóm 4:
+<strong>0001</strong>  <strong>1011</strong>  <strong>0110</strong>
+   ↓       ↓       ↓
+   1       B       6</div>
+      <p>Đổi từng nhóm 4 bit sang hexa (tra bảng):</p>
+      <ul>
+        <li><code>0001 = 1</code> (1·1 = 1)</li>
+        <li><code>1011 = B</code> (1·8 + 0·4 + 1·2 + 1·1 = 11 = B)</li>
+        <li><code>0110 = 6</code> (0·8 + 1·4 + 1·2 + 0·1 = 6)</li>
+      </ul>
+      <div class="result-box"><span class="result-label">Kết quả:</span>438₁₀ = 110110110₂ = <strong>1B6₁₆</strong></div>
+    `
+  },
+  {
+    title: "Bước 3 — Kiểm tra: đổi 1B6₁₆ về thập phân",
+    content: `
+      <p>Áp dụng công thức $N = \sum d_k \cdot 16^k$:</p>
+      <div class="code-block">1B6₁₆ = 1·16² + B·16¹ + 6·16⁰
+     = 1·256 + 11·16 + 6·1
+     = 256 + 176 + 6
+     = 438 ✓</div>
+      <p>Khớp với đề bài ban đầu (438₁₀) → ĐÚNG!</p>
+      <div class="result-box"><span class="result-label">Kết luận:</span>438₁₀ = 110110110₂ = 1B6₁₆ ✓</div>
+    `
+  },
+  {
+    title: "Bước 4 — Ví dụ nâng cao: Đổi số có phần lẻ 13.625₁₀",
+    content: `
+      <p>Tách ra phần nguyên và phần lẻ, đổi riêng rồi ghép lại.</p>
+      <p><strong>Phần nguyên 13:</strong></p>
+      <div class="code-block">13 : 2 = 6 dư 1
+ 6 : 2 = 3 dư 0
+ 3 : 2 = 1 dư 1
+ 1 : 2 = 0 dư 1
+→ 13₁₀ = 1101₂</div>
+      <p><strong>Phần lẻ 0.625 (nhân 2 lấy phần nguyên, đọc xuôi):</strong></p>
+      <div class="code-block">0.625 × 2 = <strong>1</strong>.25  → lấy 1, còn 0.25
+0.25  × 2 = <strong>0</strong>.5   → lấy 0, còn 0.5
+0.5   × 2 = <strong>1</strong>.0    → lấy 1, còn 0   → DỪNG
+→ 0.625₁₀ = 0.101₂</div>
+      <p><strong>Ghép lại:</strong></p>
+      <div class="result-box"><span class="result-label">Kết quả:</span>13.625₁₀ = 1101.101₂</div>
+    `
+  }
+];
+new StepReveal('step-demo', steps);
+</script>
+
+<!-- ============================== MÔ PHỎNG TƯƠNG TÁC ============================== -->
+<h2>🎮 Mô phỏng tương tác</h2>
+
+<div class="visualizer">
+  <div class="visualizer-title">🔄 Máy đổi hệ cơ số tương tác</div>
+
+  <div class="tabs" data-tabs="converter">
+    <button class="tab active">Dec → Bin/Hex</button>
+    <button class="tab">Bin → Dec/Hex</button>
+    <button class="tab">Hex → Dec/Bin</button>
+    <button class="tab">Phần lẻ Dec → Bin</button>
+  </div>
+
+  <!-- Tab 1: Dec -> Bin/Hex -->
+  <div class="tab-content active">
+    <p>Nhập số thập phân (0 đến 65535):</p>
+    <input type="number" id="dec-input" value="438" min="0" max="65535" style="font-size: 1.1rem; padding: 10px;">
+    <button class="btn mt-1" onclick="convertDec()">Đổi!</button>
+
+    <div id="dec-steps" class="mt-2"></div>
+    <div id="dec-result"></div>
+  </div>
+
+  <!-- Tab 2: Bin -> Dec/Hex -->
+  <div class="tab-content">
+    <p>Nhập số nhị phân (chỉ 0 và 1):</p>
+    <input type="text" id="bin-input" value="110110110" pattern="[01]+" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono);">
+    <button class="btn mt-1" onclick="convertBin()">Đổi!</button>
+
+    <div id="bin-steps" class="mt-2"></div>
+    <div id="bin-result"></div>
+  </div>
+
+  <!-- Tab 3: Hex -> Dec/Bin -->
+  <div class="tab-content">
+    <p>Nhập số hexa (0-9, A-F, tối đa 4 chữ số):</p>
+    <input type="text" id="hex-input" value="1B6" pattern="[0-9A-Fa-f]+" maxlength="4" style="font-size: 1.1rem; padding: 10px; font-family: var(--font-mono); text-transform: uppercase;">
+    <button class="btn mt-1" onclick="convertHex()">Đổi!</button>
+
+    <div id="hex-steps" class="mt-2"></div>
+    <div id="hex-result"></div>
+  </div>
+
+  <!-- Tab 4: Fraction -->
+  <div class="tab-content">
+    <p>Nhập phần lẻ (0 đến 1, ví dụ 0.625):</p>
+    <input type="number" id="frac-input" value="0.625" min="0" max="1" step="0.001" style="font-size: 1.1rem; padding: 10px;">
+    <button class="btn mt-1" onclick="convertFrac()">Đổi!</button>
+
+    <div id="frac-steps" class="mt-2"></div>
+    <div id="frac-result"></div>
+  </div>
+</div>
+
+<script>
+function convertDec() {
+  const n = parseInt(document.getElementById('dec-input').value);
+  if (isNaN(n) || n < 0) {
+    document.getElementById('dec-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Hãy nhập số nguyên không âm.</div>';
+    return;
+  }
+  const steps = NumSys.decToBinSteps(n);
+  let html = '<p><strong>Quy trình chia 2:</strong></p><div class="code-block">';
+  steps.forEach((s, i) => {
+    html += `${s.dividend} : 2 = ${s.quotient} dư <span class="text-accent font-bold">${s.remainder}</span>\n`;
+  });
+  html += '</div><p><strong>Đọc dư từ dưới lên:</strong></p>';
+  const bin = n.toString(2);
+  html += `<div class="bit-row">`;
+  bin.split('').forEach(b => {
+    html += `<div class="bit ${b === '1' ? 'one' : 'zero'}">${b}</div>`;
+  });
+  html += `</div>`;
+  document.getElementById('dec-steps').innerHTML = html;
+
+  // Hex
+  const hex = n.toString(16).toUpperCase();
+  let hexHtml = '<p><strong>Đổi sang hexa (gom 4 bit):</strong></p><div class="code-block">';
+  let paddedBin = bin;
+  while (paddedBin.length % 4 !== 0) paddedBin = '0' + paddedBin;
+  for (let i = 0; i < paddedBin.length; i += 4) {
+    const grp = paddedBin.slice(i, i + 4);
+    const h = parseInt(grp, 2).toString(16).toUpperCase();
+    hexHtml += `${grp} → ${h}\n`;
+  }
+  hexHtml += `</div>`;
+  document.getElementById('dec-result').innerHTML = hexHtml +
+    `<div class="result-box"><span class="result-label">Kết quả:</span>${n}₁₀ = ${bin}₂ = ${hex}₁₆</div>`;
+}
+
+function convertBin() {
+  const binStr = document.getElementById('bin-input').value.trim();
+  if (!/^[01]+$/.test(binStr)) {
+    document.getElementById('bin-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Chỉ được chứa 0 và 1.</div>';
+    return;
+  }
+  const dec = parseInt(binStr, 2);
+  const hex = dec.toString(16).toUpperCase();
+
+  let html = '<p><strong>Tính từng bit × 2^k (từ phải sang trái):</strong></p>';
+  html += '<div class="code-block">';
+  let sum = 0;
+  for (let i = binStr.length - 1, k = 0; i >= 0; i--, k++) {
+    const bit = binStr[i];
+    const val = parseInt(bit) * Math.pow(2, k);
+    if (val > 0) {
+      html += `${bit} × 2^${k} = ${val}\n`;
+      sum += val;
+    }
+  }
+  html += `─────\nTổng = ${sum}\n</div>`;
+  html += `<p><strong>Đổi sang hexa (gom 4 bit):</strong></p>`;
+  html += `<div class="code-block">`;
+  let padded = binStr;
+  while (padded.length % 4 !== 0) padded = '0' + padded;
+  for (let i = 0; i < padded.length; i += 4) {
+    const grp = padded.slice(i, i + 4);
+    const h = parseInt(grp, 2).toString(16).toUpperCase();
+    html += `${grp} → ${h}\n`;
+  }
+  html += `</div>`;
+  document.getElementById('bin-steps').innerHTML = html;
+  document.getElementById('bin-result').innerHTML = `<div class="result-box"><span class="result-label">Kết quả:</span>${binStr}₂ = ${dec}₁₀ = ${hex}₁₆</div>`;
+}
+
+function convertHex() {
+  const hexStr = document.getElementById('hex-input').value.trim().toUpperCase();
+  if (!/^[0-9A-F]+$/.test(hexStr)) {
+    document.getElementById('hex-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Chỉ được chứa 0-9 và A-F.</div>';
+    return;
+  }
+  const dec = parseInt(hexStr, 16);
+  const bin = dec.toString(2);
+
+  let html = '<p><strong>Tính từng chữ số × 16^k (từ phải sang trái):</strong></p>';
+  html += '<div class="code-block">';
+  let sum = 0;
+  for (let i = hexStr.length - 1, k = 0; i >= 0; i--, k++) {
+    const ch = hexStr[i];
+    const val = parseInt(ch, 16);
+    const contribution = val * Math.pow(16, k);
+    html += `${ch} × 16^${k} = ${val} × ${Math.pow(16, k)} = ${contribution}\n`;
+    sum += contribution;
+  }
+  html += `─────\nTổng = ${sum}\n</div>`;
+  html += `<p><strong>Đổi sang nhị phân (mỗi chữ số hex = 4 bit):</strong></p>`;
+  html += `<div class="code-block">`;
+  let paddedBin = '';
+  hexStr.split('').forEach(ch => {
+    const b = parseInt(ch, 16).toString(2).padStart(4, '0');
+    paddedBin += b;
+    html += `${ch} → ${b}\n`;
+  });
+  html += `</div>`;
+  document.getElementById('hex-steps').innerHTML = html;
+  document.getElementById('hex-result').innerHTML = `<div class="result-box"><span class="result-label">Kết quả:</span>${hexStr}₁₆ = ${dec}₁₀ = ${paddedBin}₂</div>`;
+}
+
+function convertFrac() {
+  const frac = parseFloat(document.getElementById('frac-input').value);
+  if (isNaN(frac) || frac < 0 || frac >= 1) {
+    document.getElementById('frac-result').innerHTML = '<div class="result-box error"><span class="result-label">Lỗi:</span> Phải là số trong khoảng [0, 1).</div>';
+    return;
+  }
+  const { steps, result } = NumSys.decFracToBin(frac, 20);
+  let html = '<p><strong>Nhân 2 lấy phần nguyên (đọc xuôi):</strong></p>';
+  html += '<div class="code-block">';
+  steps.forEach(s => {
+    const stopped = s.remainder === 0 ? '  ← DỪNG' : '';
+    html += `${s.input.toFixed(6)} × 2 = ${s.product.toFixed(6)} → lấy <span class="text-accent font-bold">${s.intPart}</span>, còn ${s.remainder.toFixed(6)}${stopped}\n`;
+  });
+  html += '</div>';
+  html += `<p><strong>Đọc phần nguyên từ trên xuống:</strong></p>`;
+  html += `<div class="result-box"><span class="result-label">Kết quả:</span>${frac}₁₀ = 0.${result}₂</div>`;
+  if (result.length === 20) {
+    html += '<div class="callout callout-warn"><div class="callout-title">⚠️ Lưu ý</div><p>Số này có phần lẻ nhị phân <strong>vô hạn tuần hoàn</strong> (chưa dứt sau 20 bit). Trong máy tính sẽ bị làm tròn.</p></div>';
+  }
+  document.getElementById('frac-steps').innerHTML = html;
+  document.getElementById('frac-result').innerHTML = '';
+}
+</script>
+
+<!-- ============================== BÀI TẬP TỰ GIẢI ============================== -->
+<h2>✍️ Bài tập tự giải</h2>
+
+<p>Hãy tự giải trước, sau đó bấm "Xem đáp án" để kiểm tra.</p>
+
+<div id="practice-exercises"></div>
+
+<script>
+const exercises = [
+  {
+    question: "Đổi <strong>0xBEEF</strong> sang thập phân.",
+    answer: `B=11, E=14, E=14, F=15<br>
+    0xBEEF = 11·16³ + 14·16² + 14·16¹ + 15·16⁰<br>
+           = 11·4096 + 14·256 + 14·16 + 15·1<br>
+           = 45056 + 3584 + 224 + 15<br>
+           = <strong>48879</strong>₁₀`
+  },
+  {
+    question: "Đổi <strong>500₁₀</strong> sang hexa và nhị phân 16 bit.",
+    answer: `500 : 16 = 31 dư 4<br>
+    31 : 16 = 1 dư 15 (F)<br>
+    1 : 16 = 0 dư 1<br>
+    → 500₁₀ = <strong>0x01F4</strong><br>
+    <br>
+    Nhị phân 16 bit: 0000 0001 1111 0100<br>
+    → <strong>0000000111110100₂</strong>`
+  },
+  {
+    question: "Đổi <strong>0.4375₁₀</strong> sang nhị phân.",
+    answer: `0.4375 × 2 = 0.875 → lấy 0, còn 0.875<br>
+    0.875 × 2 = 1.75 → lấy 1, còn 0.75<br>
+    0.75 × 2 = 1.5 → lấy 1, còn 0.5<br>
+    0.5 × 2 = 1.0 → lấy 1, còn 0 → DỪNG<br>
+    <br>
+    → 0.4375₁₀ = <strong>0.0111₂</strong>`
+  },
+  {
+    question: "Đổi <strong>10110111₂</strong> sang hexa và thập phân.",
+    answer: `Gom 4 bit từ phải: 1011 0111<br>
+    1011 = 11 = B, 0111 = 7<br>
+    → 10110111₂ = <strong>0xB7</strong><br>
+    <br>
+    Thập phân: 1·128 + 0·64 + 1·32 + 1·16 + 0·8 + 1·4 + 1·2 + 1·1<br>
+             = 128 + 32 + 16 + 4 + 2 + 1<br>
+             = <strong>183</strong>₁₀`
+  }
+];
+
+const exContainer = document.getElementById('practice-exercises');
+exercises.forEach((ex, i) => {
+  const div = document.createElement('div');
+  div.className = 'callout callout-example';
+  div.innerHTML = `
+    <div class="callout-title">📝 Bài ${i + 1}</div>
+    <p>${ex.question}</p>
+    <button class="btn btn-ghost" onclick="this.nextElementSibling.classList.toggle('hidden')">Xem đáp án</button>
+    <div class="hidden mt-2" style="background: white; padding: 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.95rem;">
+      ${ex.answer}
+    </div>
+  `;
+  exContainer.appendChild(div);
+});
+</script>
+
+<!-- ============================== QUIZ ============================== -->
+<h2>❓ Kiểm tra hiểu bài</h2>
+
+<div id="quiz-1"></div>
+
+<script>
+new Quiz('quiz-1', [
+  {
+    question: "Hệ hexa dùng bao nhiêu chữ số?",
+    options: ["8", "10", "16", "32"],
+    correct: 2,
+    explanation: "Hexa (cơ số 16) dùng 16 chữ số: 0-9 và A-F."
+  },
+  {
+    question: "Đổi 1011₂ sang thập phân:",
+    options: ["9", "10", "11", "12"],
+    correct: 2,
+    explanation: "1011 = 1·8 + 0·4 + 1·2 + 1·1 = 8+2+1 = 11"
+  },
+  {
+    question: "Khi đổi phần NGUYÊN từ thập phân sang nhị phân, ta đọc dư theo chiều nào?",
+    options: ["Từ trên xuống", "Từ dưới lên", "Từ trái sang phải", "Tùy ý"],
+    correct: 1,
+    explanation: "Phần nguyên CHIA 2 lấy dư, đọc TỪ DƯỚI LÊN. Bit dư cuối cùng (MSB) ở dưới cùng."
+  },
+  {
+    question: "Khi đổi phần LẺ từ thập phân sang nhị phân, ta làm gì?",
+    options: ["Chia 2 lấy dư", "Nhân 2 lấy phần nguyên", "Cộng 2 liên tục", "Trừ 2 liên tục"],
+    correct: 1,
+    explanation: "Phần lẻ NHÂN 2 lấy phần NGUYÊN, đọc TỪ TRÊN XUỐNG."
+  },
+  {
+    question: "Số 0xF trong thập phân là bao nhiêu?",
+    options: ["10", "14", "15", "16"],
+    correct: 2,
+    explanation: "F = 15 trong hexa. (A=10, B=11, C=12, D=13, E=14, F=15)"
+  },
+  {
+    question: "Mỗi chữ số hexa tương đương với bao nhiêu bit nhị phân?",
+    options: ["2 bit", "4 bit", "8 bit", "16 bit"],
+    correct: 1,
+    explanation: "4 bit nhị phân = 1 chữ số hexa (vì 2^4 = 16 giá trị)."
+  }
+]);
+</script>
+
+<!-- ============================== CÁCH TRÌNH BÀY BÀI THI ============================== -->
+<h2>🏆 Cách trình bày bài thi (để được điểm tối đa)</h2>
+
+<div class="callout callout-exam">
+  <div class="callout-title">📋 Mẫu trình bày chuẩn</div>
+  <p>Đây là cách GIÁM KHẢO MUỐN THẤY trong bài thi của bạn. Học theo mẫu này!</p>
+
+  <h4>Đề bài mẫu:</h4>
+  <p><em>Đổi số thập phân 438 sang nhị phân và hexa.</em></p>
+
+  <h4>Trình bày chuẩn:</h4>
+  <pre><strong>Bài giải:</strong>
+
+<strong>a) Đổi 438 sang nhị phân (chia 2 lấy dư):</strong>
+438 : 2 = 219 dư 0   (LSB)
+219 : 2 = 109 dư 1
+109 : 2 =  54 dư 1
+ 54 : 2 =  27 dư 0
+ 27 : 2 =  13 dư 1
+ 13 : 2 =   6 dư 1
+  6 : 2 =   3 dư 0
+  3 : 2 =   1 dư 1
+  1 : 2 =   0 dư 1   (MSB)
+
+Đọc dư từ dưới lên:
+→ 438₁₀ = 110110110₂
+
+<strong>b) Đổi 110110110₂ sang hexa (gom 4 bit):</strong>
+0001 1011 0110
+  1    B    6
+→ 438₁₀ = 1B6₁₆
+
+<strong>c) Kiểm tra:</strong>
+1B6₁₆ = 1·256 + 11·16 + 6·1 = 256 + 176 + 6 = 438 ✓
+
+<strong>Kết luận:</strong> 438₁₀ = 110110110₂ = 1B6₁₆</pre>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 5 bí kíp để được điểm tối đa</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn ghi rõ công thức/method trước khi tính</strong> — vd "Đổi bằng cách chia 2 lấy dư". Giám khảo thấy bạn hiểu phương pháp sẽ cho điểm ngay cả khi tính sai.</li>
+    <li><strong>Viết phép chia theo cột thẳng hàng</strong> — dễ đọc, dễ chấm, dễ thấy bạn làm đúng quy trình.</li>
+    <li><strong>Ghi chú (LSB) ở bit dưới cùng, (MSB) ở bit trên cùng</strong> — chứng tỏ hiểu bit nào đọc trước.</li>
+    <li><strong>Luôn có phần "Kiểm tra" (đổi ngược lại)</strong> — giám khảo rất thích, cho điểm cộng.</li>
+    <li><strong>Kết thúc bằng "Kết luận: ..." (in đậm hoặc gạch chân)</strong> — giám khảo tìm đáp án nhanh, ấn tượng tốt.</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Những lỗi mất điểm thường gặp</div>
+  <ul style="padding-left: 20px;">
+    <li>❌ Chỉ viết đáp án cuối cùng mà không có các bước trung gian → mất 50% điểm.</li>
+    <li>❌ Đọc dư sai chiều (đọc từ trên xuống thay vì từ dưới lên) → kết quả sai hoàn toàn.</li>
+    <li>❌ Quên thêm số 0 phía trước khi gom 4 bit (vd 110110110 gom thành 1 1011 0110 thay vì 0001 1011 0110).</li>
+    <li>❌ Không ghi cơ số (viết 438 thay vì 438₁₀) → giám khảo khó chấm.</li>
+    <li>❌ Nhầm A=11, B=12... → sai hexa. (Đúng: A=10, B=11, C=12, D=13, E=14, F=15)</li>
+  </ul>
+</div>
+
+<!-- ============================== TÓM TẮT ============================== -->
+<h2>📌 Tóm tắt cuối bài</h2>
+
+<div class="callout callout-theory">
+  <div class="callout-title">✅ Điểm cần nhớ</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Máy tính chỉ hiểu 0 và 1</strong> (nhị phân). Hexa dùng để viết gọn.</li>
+    <li><strong>4 bit nhị phân = 1 chữ số hexa</strong>.</li>
+    <li><strong>Dec → Bin</strong>: chia 2 lấy dư, đọc ngược từ dưới lên.</li>
+    <li><strong>Bin → Dec</strong>: nhân từng bit với $2^k$ (k = vị trí từ phải).</li>
+    <li><strong>Bin ↔ Hex</strong>: gom 4 bit thành 1 chữ số hexa (hoặc tách 1 hexa thành 4 bit).</li>
+    <li><strong>Dec → Hex</strong>: chia 16 lấy dư, đọc ngược từ dưới lên.</li>
+    <li><strong>Phần lẻ Dec → Bin</strong>: nhân 2 lấy phần nguyên, đọc xuôi từ trên xuống.</li>
+    <li><strong>Bảng hexa</strong>: A=10, B=11, C=12, D=13, E=14, F=15.</li>
+  </ol>
+</div>
+
+<div class="callout callout-tip">
+  <div class="callout-title">🎯 Mẹo thi nhanh</div>
+  <p>Nếu cần đổi Bin → Hex nhanh: <strong>nhẩm từng nhóm 4 bit</strong>. Bảng tra thường dùng:</p>
+  <table>
+    <tr><th>Bin</th><th>Hex</th><th>Dec</th></tr>
+    <tr><td>0000</td><td>0</td><td>0</td></tr>
+    <tr><td>0001</td><td>1</td><td>1</td></tr>
+    <tr><td>0010</td><td>2</td><td>2</td></tr>
+    <tr><td>0011</td><td>3</td><td>3</td></tr>
+    <tr><td>0100</td><td>4</td><td>4</td></tr>
+    <tr><td>0101</td><td>5</td><td>5</td></tr>
+    <tr><td>0110</td><td>6</td><td>6</td></tr>
+    <tr><td>0111</td><td>7</td><td>7</td></tr>
+    <tr><td>1000</td><td>8</td><td>8</td></tr>
+    <tr><td>1001</td><td>9</td><td>9</td></tr>
+    <tr><td>1010</td><td>A</td><td>10</td></tr>
+    <tr><td>1011</td><td>B</td><td>11</td></tr>
+    <tr><td>1100</td><td>C</td><td>12</td></tr>
+    <tr><td>1101</td><td>D</td><td>13</td></tr>
+    <tr><td>1110</td><td>E</td><td>14</td></tr>
+    <tr><td>1111</td><td>F</td><td>15</td></tr>
+  </table>
+  <p>Học thuộc bảng này — tiết kiệm rất nhiều thời gian trong thi.</p>
+</div>
+
+<div class="nav-bottom">
+  <a href="../index.html" class="btn btn-ghost">← Mục lục</a>
+  <a href="02-bu-2.html" class="btn">Bài 2: Số bù 2 →</a>
+</div>
+
+<script src="../assets/common.js"></script>
+</body>
+</html>

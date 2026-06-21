@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ôn tập KTMT & BTMT - 14 bài tương tác chi tiết</title>
+<link rel="stylesheet" href="assets/style.css">
+<!-- KaTeX for math formulas -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+</head>
+<body>
+
+<div class="nav-top">
+  <a href="index.html"><strong>📚 Ôn Thi KTMT-BTMT</strong></a>
+  <span>Quyết tâm 10 điểm!</span>
+</div>
+
+<h1>Ôn Tập Kiến Trúc Máy Tính & Bảo Trì Máy Tính</h1>
+
+<p class="text-center" style="font-size: 1.1rem; color: var(--gray-700);">
+  14 bài học tương tác — chi tiết, dễ hiểu, có mô phỏng trực quan &amp; bài tập thực hành.<br>
+  Dành cho người "mất gốc" vẫn muốn đạt điểm tối đa.
+</p>
+
+<div class="callout callout-tip">
+  <div class="callout-title">💡 Cách học hiệu quả</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Đọc lý thuyết</strong> ở đầu mỗi bài (đừng bỏ qua — đây là nền tảng).</li>
+    <li><strong>Chạy mô phỏng</strong> tương tác, bấm từng nút để xem kết quả thay đổi.</li>
+    <li><strong>Làm bài tập tự sinh</strong>: nhập số liệu của bạn, xem chương trình tính ra sao.</li>
+    <li><strong>Làm quiz</strong> ở cuối bài để kiểm tra xem đã hiểu chưa.</li>
+    <li><strong>Đọc phần "Cách trình bày bài thi"</strong> ở cuối mỗi bài — đây là "bí kíp" được điểm tối đa.</li>
+  </ol>
+</div>
+
+<h2>📋 Danh sách 14 bài học</h2>
+
+<div class="lesson-grid">
+
+  <a href="lessons/01-he-co-so.html" class="lesson-card">
+    <span class="lesson-card-number">1</span>
+    <div class="lesson-card-title">Hệ cơ số (Dec/Bin/Hex)</div>
+    <div class="lesson-card-desc">Đổi qua lại giữa thập phân, nhị phân, hexa. Phần nguyên + phần lẻ. Có máy tính tự sinh.</div>
+    <span class="lesson-card-tag">Cơ bản</span>
+    <span class="lesson-card-tag">Tính toán</span>
+  </a>
+
+  <a href="lessons/02-bu-2.html" class="lesson-card">
+    <span class="lesson-card-number">2</span>
+    <div class="lesson-card-title">Số bù 2 (Two's Complement)</div>
+    <div class="lesson-card-desc">Cách máy tính lưu số âm. Đảo bit + cộng 1. Đổi ngược bù 2 về thập phân.</div>
+    <span class="lesson-card-tag">Cơ bản</span>
+    <span class="lesson-card-tag">Bit animation</span>
+  </a>
+
+  <a href="lessons/03-endian.html" class="lesson-card">
+    <span class="lesson-card-number">3</span>
+    <div class="lesson-card-title">Big Endian vs Little Endian</div>
+    <div class="lesson-card-desc">Sắp xếp byte trong bộ nhớ. Intel vs Motorola. Mô phỏng trực quan ô nhớ.</div>
+    <span class="lesson-card-tag">Bộ nhớ</span>
+    <span class="lesson-card-tag">Animation</span>
+  </a>
+
+  <a href="lessons/04-ieee754-single.html" class="lesson-card">
+    <span class="lesson-card-number">4</span>
+    <div class="lesson-card-title">IEEE 754 Single (số dương)</div>
+    <div class="lesson-card-desc">5 bước đổi số thực sang 32 bit. Bias 127. Mô phỏng tách S|E|F.</div>
+    <span class="lesson-card-tag">Số thực</span>
+    <span class="lesson-card-tag">5 bước</span>
+  </a>
+
+  <a href="lessons/05-ieee754-am.html" class="lesson-card">
+    <span class="lesson-card-number">5</span>
+    <div class="lesson-card-title">IEEE 754 Single (số ÂM)</div>
+    <div class="lesson-card-desc">Số thực âm, mũ âm. Dịch phải dấu chấm. Điểm dễ sai nhất của đề thi.</div>
+    <span class="lesson-card-tag">Đề thi</span>
+    <span class="lesson-card-tag">Dễ sai</span>
+  </a>
+
+  <a href="lessons/06-ieee754-dao.html" class="lesson-card">
+    <span class="lesson-card-number">6</span>
+    <div class="lesson-card-title">Đảo ngược IEEE 754 + Double</div>
+    <div class="lesson-card-desc">Từ 32 bit nhị phân tìm lại số thập phân. Double precision 64 bit.</div>
+    <span class="lesson-card-tag">Đề thi</span>
+    <span class="lesson-card-tag">Đảo ngược</span>
+  </a>
+
+  <a href="lessons/07-parity.html" class="lesson-card">
+    <span class="lesson-card-number">7</span>
+    <div class="lesson-card-title">Parity Bit + VRC/LRC</div>
+    <div class="lesson-card-desc">Bit chẵn/lẻ. Ma trận VRC+LRC 2 chiều phát hiện + định vị lỗi 1 bit.</div>
+    <span class="lesson-card-tag">Mã lỗi</span>
+    <span class="lesson-card-tag">Ma trận</span>
+  </a>
+
+  <a href="lessons/08-crc.html" class="lesson-card">
+    <span class="lesson-card-number">8</span>
+    <div class="lesson-card-title">CRC (Cyclic Redundancy Check)</div>
+    <div class="lesson-card-desc">6 bước tính CRC. Phép chia XOR chi tiết từng bước. Đa thức sinh G(x).</div>
+    <span class="lesson-card-tag">XOR</span>
+    <span class="lesson-card-tag">Chia từng bước</span>
+  </a>
+
+  <a href="lessons/09-hamming-sinh.html" class="lesson-card">
+    <span class="lesson-card-number">9</span>
+    <div class="lesson-card-title">Hamming - Sinh mã H(7,4)</div>
+    <div class="lesson-card-desc">Sinh 3 bit kiểm tra C1,C2,C3 từ 4 bit dữ liệu. Bố trí vị trí lũy thừa 2.</div>
+    <span class="lesson-card-tag">ECC</span>
+    <span class="lesson-card-tag">XOR</span>
+  </a>
+
+  <a href="lessons/10-hamming-sua-loi.html" class="lesson-card">
+    <span class="lesson-card-number">10</span>
+    <div class="lesson-card-title">Hamming - Phát hiện &amp; Sửa lỗi</div>
+    <div class="lesson-card-desc">Syndrome = C(mới) XOR C(nhận). Số thập phân = vị trí bit sai.</div>
+    <span class="lesson-card-tag">Sửa lỗi</span>
+    <span class="lesson-card-tag">Đề thi</span>
+  </a>
+
+  <a href="lessons/11-dia-chi-vat-ly.html" class="lesson-card">
+    <span class="lesson-card-number">11</span>
+    <div class="lesson-card-title">Địa chỉ vật lý 8088</div>
+    <div class="lesson-card-desc">Công thức Segment × 16 + Offset. Nhân 10H = thêm 1 số 0. Nhiều cặp S:O cùng địa chỉ.</div>
+    <span class="lesson-card-tag">8088</span>
+    <span class="lesson-card-tag">Hex math</span>
+  </a>
+
+  <a href="lessons/12-co-fr.html" class="lesson-card">
+    <span class="lesson-card-number">12</span>
+    <div class="lesson-card-title">Cờ FR (Flag Register)</div>
+    <div class="lesson-card-desc">6 cờ trạng thái CF, PF, AF, ZF, SF, OF. Tính cờ sau phép ADD/SUB.</div>
+    <span class="lesson-card-tag">Cờ</span>
+    <span class="lesson-card-tag">Tràn</span>
+  </a>
+
+  <a href="lessons/13-pipeline.html" class="lesson-card">
+    <span class="lesson-card-number">13</span>
+    <div class="lesson-card-title">Pipeline &amp; Hazards</div>
+    <div class="lesson-card-desc">5 giai đoạn IF-ID-EX-MEM-RS. Speedup. Data/Control hazard + forwarding.</div>
+    <span class="lesson-card-tag">Pipeline</span>
+    <span class="lesson-card-tag">Animation</span>
+  </a>
+
+  <a href="lessons/14-cache.html" class="lesson-card">
+    <span class="lesson-card-number">14</span>
+    <div class="lesson-card-title">Cache (mapping + hit rate + PSU)</div>
+    <div class="lesson-card-desc">Direct/Set-Associative mapping. LRU/FIFO/LFU. t_avg, hit ratio. Tính PSU.</div>
+    <span class="lesson-card-tag">Cache</span>
+    <span class="lesson-card-tag">BTMT</span>
+  </a>
+
+</div>
+
+<h2>🎯 Lộ trình ôn tập (3 buổi)</h2>
+
+<div class="tabs" data-tabs="schedule">
+  <button class="tab active">Buổi 1 (sáng nay)</button>
+  <button class="tab">Buổi 2 (chiều tối nay)</button>
+  <button class="tab">Buổi 3 (sáng mai trước thi)</button>
+</div>
+
+<div class="tab-content active">
+  <h3>Buổi 1 — Nền tảng số học (bài 1-6)</h3>
+  <p>Học các bài về biểu diễn số: hệ cơ số, bù 2, Endian, IEEE 754. Đây là phần khó nhất, cần thời gian để "ngấm".</p>
+  <ul style="padding-left: 20px;">
+    <li>Bài 1: Hệ cơ số (30 phút)</li>
+    <li>Bài 2: Bù 2 (30 phút)</li>
+    <li>Bài 3: Endian (20 phút)</li>
+    <li>Bài 4-5-6: IEEE 754 (90 phút — phần khó nhất)</li>
+  </ul>
+  <p><strong>Mục tiêu</strong>: Tự tính được 1 bài IEEE 754 từ đầu đến cuối mà không cần xem đáp án.</p>
+</div>
+
+<div class="tab-content">
+  <h3>Buổi 2 — Mã lỗi & CPU (bài 7-12)</h3>
+  <ul style="padding-left: 20px;">
+    <li>Bài 7: Parity (30 phút)</li>
+    <li>Bài 8: CRC (45 phút — chia XOR nhiều bước)</li>
+    <li>Bài 9-10: Hamming (60 phút — sinh mã + sửa lỗi)</li>
+    <li>Bài 11: Địa chỉ vật lý (30 phút)</li>
+    <li>Bài 12: Cờ FR (30 phút)</li>
+  </ul>
+  <p><strong>Mục tiêu</strong>: Tự sinh mã Hamming + sửa lỗi 1 bit không cần nhìn công thức.</p>
+</div>
+
+<div class="tab-content">
+  <h3>Buổi 3 — Cache + BTMT + Tổng ôn (bài 13-14)</h3>
+  <ul style="padding-left: 20px;">
+    <li>Bài 13: Pipeline (30 phút)</li>
+    <li>Bài 14: Cache + PSU (60 phút)</li>
+    <li>Tổng ôn: mở lại tất cả các bài, xem phần "Cách trình bày bài thi" ở cuối mỗi bài.</li>
+  </ul>
+  <p><strong>Mục tiêu</strong>: Nắm vững cách trình bày để giám khảo dễ chấm, được điểm tối đa.</p>
+</div>
+
+<div class="callout callout-exam mt-3">
+  <div class="callout-title">🏆 Bí kíp được 10 điểm</div>
+  <ol style="padding-left: 20px;">
+    <li><strong>Luôn viết công thức trước khi tính</strong> — giám khảo chấm điểm công thức dù kết quả sai.</li>
+    <li><strong>Chia bài làm thành B1, B2, B3...</strong> — rõ ràng, dễ theo dõi.</li>
+    <li><strong>Viết kết luận cuối bài (đỏ hoặc gạch chân)</strong> — giám khảo dễ thấy đáp án.</li>
+    <li><strong>Thêm "Mẹo thi" hoặc "Lưu ý"</strong> — chứng tỏ hiểu sâu, được điểm cộng.</li>
+    <li><strong>Kiểm tra lại bằng cách đảo ngược</strong> — vd tính bù 2 của −5 = 11111011, kiểm tra: đảo bit + 1 của 11111011 phải ra 00000101 = 5. ✓</li>
+  </ol>
+</div>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Quan trọng về GitHub Token</div>
+  <p>Token GitHub đã được dùng 1 lần để tạo repo này. <strong>Bạn PHẢI revoke (xóa) token ngay</strong>:</p>
+  <ol style="padding-left: 20px;">
+    <li>Vào <a href="https://github.com/settings/tokens" target="_blank">https://github.com/settings/tokens</a></li>
+    <li>Tìm token bắt đầu bằng <code>ghp_u9sK1...</code></li>
+    <li>Bấm <strong>Delete</strong>.</li>
+  </ol>
+  <p>Nếu không xóa, bất cứ ai thấy token này đều có thể push code lên tài khoản GitHub của bạn.</p>
+</div>
+
+<div class="text-center mt-3" style="color: var(--gray-500); font-size: 0.9rem;">
+  Chúc bạn làm bài thật tốt! Quyết tâm 10 điểm! 🎓
+</div>
+
+<script src="assets/common.js"></script>
+</body>
+</html>
